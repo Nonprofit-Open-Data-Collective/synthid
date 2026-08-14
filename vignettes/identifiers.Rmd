@@ -1,0 +1,128 @@
+---
+title: "The two identifiers: EMP_ID and PERSON_YEAR_ID"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{The two identifiers: EMP_ID and PERSON_YEAR_ID}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(synthid)
+```
+
+`synthid` produces two complementary identifiers. They answer different questions
+and should not be confused:
+
+| Identifier | Answers | Grain |
+|---|---|---|
+| **`PERSON_YEAR_ID`** | *Which source row is this?* | one Form 990 Part VII line |
+| **`EMP_ID`** | *Who is this, across years?* | one person (a cluster of rows) |
+
+`PERSON_YEAR_ID` is the stable **back-link** from a linked record to the raw
+filing it came from; `EMP_ID` is the stable **cross-year person** id that groups a
+person's rows together. Both are deterministic hashes, so they are reproducible
+across runs and recoverable from the source if ever lost.
+
+## `PERSON_YEAR_ID`: a back-link to the source row
+
+The key is the native filing/person pair `(OBJECTID, TABLE_ID)`:
+
+- **`OBJECTID`** identifies the filing. It comes from the IRS filing index (not
+  the XML body parse), so it is parser-independent.
+- **`TABLE_ID`** is the stored per-person key *within* a filing. It is unique
+  inside a filing and never empty, so — unlike a name or title key — it needs no
+  disambiguation and is unaffected by downstream name/title cleaning.
+
+```{r pyid}
+person_year_id(
+  object_id = c("OID-201243189349201149", "OID-201243189349201149"),
+  table_id  = c("TID-00001",              "TID-00002")
+)
+```
+
+Two people in the same filing (`TID-00001`, `TID-00002`) get distinct ids. The
+recipe is `PYID-` + a hash of `keyspec | OBJECTID | TABLE_ID`; the `keyspec` is
+baked in so a future change to the recipe can never silently collide with old ids.
+
+### Why not hash the name?
+
+A name/title key collides whenever two people share a name in the same org-year,
+and it *changes* when titles are later cleaned or reclassified. `(OBJECTID,
+TABLE_ID)` has neither problem. The raw `OBJECTID` and `TABLE_ID` columns are kept
+alongside `PERSON_YEAR_ID` so the id is always auditable and re-derivable.
+
+## Filing resolution: the subtlety `PERSON_YEAR_ID` forced us to fix
+
+`EIN + TAXYR` is *not* a unique filing key. An organization can submit several
+returns for one tax year — an original plus amendments — each a **distinct
+`OBJECTID` with its own independent `TID-00001..N` sequence**. So the same
+`TABLE_ID` number recurs *across* filings, while never repeating *within* one.
+
+Left alone, the same person would appear once per filing, inflating the panel and
+letting superseded returns feed stale data downstream. The preprocessing resolves
+this by keeping only the **authoritative** filing per org-year — latest
+`RETURN_TIME_STAMP`, amended-preferred, with a deterministic final tie-break:
+
+```{r resolve}
+# Three filings of the same 2011 return: one original + two amendments.
+filings <- data.frame(
+  OBJECTID = c("OID-201213189349200431", "OID-201223189349201207", "OID-201243189349201149"),
+  amended  = c(FALSE, TRUE, TRUE),
+  ts       = c("2012-11-13 14:05:34", "2012-11-13 17:14:29", "2012-11-13 19:16:05"),
+  stringsAsFactors = FALSE
+)
+# Winner rule: latest timestamp, amended-preferred, then max OBJECTID.
+o <- order(filings$ts, filings$amended, filings$OBJECTID)
+winner <- filings$OBJECTID[o][nrow(filings)]
+winner
+```
+
+After resolution, the person-year grain is `OBJECTID + TABLE_ID` (the source
+person-line). This keeps two genuinely different people who share a name in the
+same filing as **distinct** records, and makes `PERSON_YEAR_ID` map 1:1 to panel
+rows — collision-free by construction.
+
+## `EMP_ID`: the cross-year person id
+
+`EMP_ID` is stamped by `link_panel()` after the accepted links close into person
+clusters. It is a **content hash of the cluster's sorted members**, so it is
+stable across runs as long as the membership is. The lower-level hashing is
+exported:
+
+```{r emp}
+# One canonical string per record, fed to the hasher:
+df <- data.frame(ein = c("11", "11"), taxyr = c(2019, 2020),
+                 name = c("Jane Roe", "Jane Roe"),
+                 title.standard = c("CEO", "CEO"))
+ids <- build_id_string(df)
+ids
+
+# Deterministic EMP-style hash of a vector of keys (same input -> same id):
+create_emp_ids(c("cluster-A", "cluster-B", "cluster-A"))
+```
+
+## How the two relate
+
+Within a person's `EMP_ID` cluster, each row still carries its own
+`PERSON_YEAR_ID`. So `EMP_ID` groups the rows; `PERSON_YEAR_ID` ties each grouped
+row back to its exact source filing. A longitudinal panel keyed on `EMP_ID` can
+always drill back to the raw Part VII line via `PERSON_YEAR_ID`.
+
+## Future work: `CONTENT_ID`
+
+`PERSON_YEAR_ID` depends on `TABLE_ID`, which is parser-derived and has broken on
+pathological XML before. A parser-independent `CONTENT_ID` — a hash of normalized
+native content fields — could be stored alongside as a recovery bridge if
+`TABLE_ID` numbering ever changes globally. It is documented as future work in
+`?person_year_id`; because a parser change bad enough to break `TABLE_ID` usually
+corrupts that record's content too, `CONTENT_ID` mainly insures against a *global*
+renumbering of otherwise-clean rows. Persisting the raw `OBJECTID`/`TABLE_ID`
+columns keeps that bridge buildable after the fact.
+
+## See also
+
+- [Getting started](getting-started.html) for where these ids appear in output.
+- `person_year_id()`, `create_emp_ids()`, `build_id_string()` in the reference.
+```

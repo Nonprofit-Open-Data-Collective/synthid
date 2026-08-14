@@ -1,0 +1,116 @@
+---
+title: "Reviewing and QA-ing links"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Reviewing and QA-ing links}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(synthid)
+```
+
+Automated linkage should never be the last word on a longitudinal panel. This
+article covers the quality-control layer: how to surface the links most worth a
+human's attention, and how to route upstream **name-parser defects** back to
+`peopleparser` instead of silently absorbing them.
+
+There are two distinct jobs, and two functions:
+
+- **`flag_links()`** — flags *linkage* decisions that deserve review.
+- **`parse_fail_log()`** — flags *parser* defects that corrupted the inputs.
+
+## Input contract
+
+Both operate on a linked panel (the output of `link_panel()`), and both need the
+raw name to compare against the parsed components. The relevant columns:
+
+| role | default column |
+|---|---|
+| person id | `EMP_ID` |
+| organization | `ein`, `org.name` |
+| tax year | `taxyr` |
+| raw name | `name.raw` |
+| parsed parts | `first_name`, `last_name` |
+
+`name.raw` is the literal source name; carrying it through the pipeline (see the
+[Getting started](getting-started.html) article) is what makes this review layer
+possible.
+
+## Flagging links for review
+
+`flag_links()` scans each linked cluster for the failure modes that survive
+automated scoring and tags them with a category:
+
+```{r flag, eval = FALSE}
+linked <- link_panel(panel)
+flags  <- flag_links(linked)
+table(flags$category)
+```
+
+The categories name *why* a link (or non-link) is suspect — for example:
+
+| category | what it catches |
+|---|---|
+| `surname_compound` | compound surnames matched on one shared token |
+| `surname_credential` | a credential (`MD`, `CPA`) fused into the surname |
+| `parser_honorific_glue` | an honorific glued onto the name by the parser |
+| `nickname_or_spelling` | first names differing by a nickname or spelling |
+
+Turn the flagged set into a ready-to-work queue (sorted, deduplicated, one row per
+item to review) and export it:
+
+```{r queue, eval = FALSE}
+q <- link_review_queue(flags)
+utils::write.csv(q, "link_review_queue.csv", row.names = FALSE)
+```
+
+## Routing parser defects upstream
+
+Some problems are not linkage errors at all — they are defects in the parsed name
+that `synthid` merely *detects*. `parse_fail_log()` isolates these so they can be
+fixed at the source (`peopleparser`) rather than patched here:
+
+```{r parsefail, eval = FALSE}
+log <- parse_fail_log(linked, path = "peopleparser_parse_fails.csv")
+table(log$defect_type)
+```
+
+The defect classes correspond to concrete parser failure modes:
+
+| defect_type | meaning |
+|---|---|
+| `honorific_glue` | an honorific (`REV`, `HON`) stuck to a given name |
+| `credential_in_surname` | a post-nominal credential absorbed into the surname |
+| `surname_letter_glue` | a stray initial glued to the surname |
+
+## The token vocabularies
+
+The flaggers are driven by small, inspectable token sets — the honorifics and
+credentials they look for. These are exported so you can see exactly what is
+matched (and extend them):
+
+```{r tokens}
+head(honorific_tokens(), 20)
+head(credential_tokens(), 20)
+```
+
+Pass extended vectors via the `hon =` / `cred =` arguments of `flag_links()` to
+tune sensitivity.
+
+## A workflow
+
+1. `link_panel()` to produce the linked panel.
+2. `flag_links()` → `link_review_queue()` → hand the CSV to a reviewer.
+3. `parse_fail_log()` → hand its CSV to the `peopleparser` maintainer.
+4. Re-run once upstream fixes land; the deterministic ids mean unaffected records
+   keep their `EMP_ID` / `PERSON_YEAR_ID`.
+
+## See also
+
+- `flag_links()`, `link_review_queue()`, `parse_fail_log()`,
+  `honorific_tokens()`, `credential_tokens()` in the reference.
+- [The two identifiers](identifiers.html) for why `name.raw` is retained.
+```

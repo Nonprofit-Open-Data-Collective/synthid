@@ -1,0 +1,115 @@
+url: https://nonprofit-open-data-collective.github.io/synthid/
+destination: docs
+
+template:
+  bootstrap: 5
+  bslib:
+    primary: "#1f6feb"
+
+navbar:
+  structure:
+    left:  [workflow, reference, articles]
+    right: [search, github]
+  components:
+    workflow:
+      text: Workflow
+      href: articles/getting-started.html
+    articles:
+      text: Articles
+      menu:
+      - text: Getting started - panel walk-through
+        href: articles/getting-started.html
+      - text: How the matching works
+        href: articles/matching-methodology.html
+      - text: The two identifiers - EMP_ID and PERSON_YEAR_ID
+        href: articles/identifiers.html
+      - text: Reviewing and QA-ing links
+        href: articles/link-review.html
+      - text: Cross-organization linkage
+        href: articles/cross-org.html
+      - text: Title roles
+        href: articles/title-roles.html
+      - text: Scaling to the full panel
+        href: articles/scaling.html
+
+reference:
+- title: Panel linkage
+  desc: >
+    The end-to-end entry point: assign a stable cross-year EMP_ID to every
+    record in a compensation panel, and report on the run.
+  contents:
+  - link_panel
+  - synthid_report
+  - synthid_cols
+
+- title: Synthetic identifiers
+  desc: >
+    Deterministic, reproducible identifiers. PERSON_YEAR_ID links a record back
+    to its source Part VII row; EMP_ID identifies a person across years.
+  contents:
+  - person_year_id
+  - create_emp_ids
+  - build_id_string
+
+- title: Match scoring and model
+  desc: >
+    The Fellegi-Sunter machinery: per-field comparison vectors, the additive
+    hand-weighted score, and the unsupervised EM latent-class model.
+  contents:
+  - candidate_comparisons
+  - candidate_scores
+  - default_weights
+  - fit_match_model
+  - predict_match
+  - fs_weights
+
+- title: Name comparison
+  desc: >
+    The comparators that make linkage robust: a compound surname comparator, a
+    nickname/phonetic-aware first-name comparator, and surname-rarity weighting.
+  contents:
+  - compare_two_names
+  - compare_first_names
+  - compare_last_names
+  - preprocess_name
+  - nickname_table
+  - surname_weight
+  - population_surname_weight
+
+- title: Cross-organization linkage
+  desc: >
+    Link the same person across different organizations (interlocking
+    directorates) via person profiles and hash-lookup blocking.
+  contents:
+  - link_cross_org
+  - build_person_profile
+  - blocking_passes
+  - person_blocking_keys
+  - candidate_pairs
+  - score_candidate_pairs
+  - filter_edges_by_role
+  - board_only_edges
+  - non_board_edges
+  - stamp_xorg
+
+- title: Title roles
+  desc: >
+    A coarse role taxonomy (BOARD / OFFICER / STAFF / OTHER) over standardized
+    titles, used to reason about the composition of a match.
+  contents:
+  - title_role
+  - classify_title_role
+  - title_role_rules
+  - title_role_coverage
+
+- title: Link review and parser triage
+  desc: >
+    Post-linkage quality control: flag links for human review and surface
+    upstream name-parser defects for handoff.
+  contents:
+  - flag_links
+  - link_review_queue
+  - parse_fail_log
+  - parse_fail_tokens
+  - honorific_tokens
+  - credential_tokens

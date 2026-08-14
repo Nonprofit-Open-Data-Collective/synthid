@@ -1,0 +1,162 @@
+---
+title: "How the matching works"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{How the matching works}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(synthid)
+```
+
+Linkage comes down to one repeated decision: *are these two records the same
+person?* This article opens up how `synthid` answers it — the comparators, the
+score, and the learned model — so the decisions are auditable rather than a black
+box.
+
+## The score in one line
+
+Each candidate pair gets an additive score. Every field contributes
+
+```
+weight x (2 * similarity - 1)
+```
+
+so a **similarity of 1** adds `+weight`, a **similarity of 0** subtracts
+`weight`, and a **missing field is neutral** (it drops out rather than counting
+as agreement). A pair links when its total clears the `threshold`. The interesting
+engineering is in (a) how each field's *similarity* is computed and (b) how the
+surname *weight* is adjusted per organization.
+
+## The name comparators
+
+Plain string distance is not enough for names. Two comparators do the heavy
+lifting.
+
+### Surname: robust to tokens and separators
+
+`compare_two_names()` takes the max of a whole-string match (robust to separator
+noise) and a token-coverage match divided by the *smaller* token count (robust to
+a dropped or reordered token) — then rescales so that unrelated names land near 0:
+
+```{r surname}
+compare_two_names("MCLANE", "MC-LANE")               # separator noise -> ~1
+compare_two_names("ANDREWS-MCLANE", "MCLANE")        # dropped token   -> high
+compare_two_names("WEINER-COHEN", "COHEN-GANTSOUDES") # share ONE token -> low
+```
+
+That last case is the point: two different multi-token surnames that happen to
+share one token must **not** masquerade as the same person.
+
+### First name: nicknames and sound-alikes, but not siblings
+
+`compare_first_names()` treats a *direct* nickname as near-agreement, an initial
+vs a full name as weak, and a phonetic sound-alike as penalty-free — while
+refusing to equate sibling diminutives:
+
+```{r firstname}
+compare_first_names(c("BOB", "JON",     "LISA"),
+                    c("ROBERT", "JONATHAN", "BETH"))
+# BOB~ROBERT and JON~JONATHAN score high; LISA~BETH does NOT.
+```
+
+### Why rescaling matters
+
+Plain Jaro–Winkler rarely drops below ~0.5, so a clear mismatch would read as
+"half a match." Both name similarities are rescaled so unrelated names actually
+*penalise* — otherwise a nickname plus gender agreement could override a genuinely
+different surname.
+
+## The surname-frequency adjustment (the family-board problem)
+
+Boards are often family-dominated. Agreeing on `SMITH` inside a board that is
+half Smiths tells you almost nothing. `surname_weight()` scales the surname's
+contribution *per organization* by how rare it is inside that org:
+
+```{r surnamewt}
+board <- data.frame(
+  ein = "100",
+  name = c("JOHN SMITH", "JANE SMITH", "ANN JONES"),
+  last_name = c("SMITH", "SMITH", "JONES")
+)
+surname_weight(board, org_id = "ein", name = "name", last_name = "last_name")
+```
+
+The adjustment is deliberately **asymmetric**: an *agreement* is weighted by the
+commoner side (so a shared common surname carries little information and the first
+name / suffix / gender do the discriminating), while a *disagreement* is weighted
+by the rarer side (so a genuine surname mismatch keeps its full penalty and cannot
+be diluted away). `population_surname_weight()` provides a corpus-level prior for
+the cross-organization setting.
+
+## The default weights
+
+The base field weights are inspectable and overridable:
+
+```{r weights}
+default_weights()
+```
+
+Pass a modified copy to `link_panel(panel, weights = ...)` to reweight fields.
+
+## Scoring a panel
+
+`candidate_scores()` exposes the per-pair scores directly — useful for choosing a
+threshold or debugging a specific pair:
+
+```{r scores}
+rec <- function(ein, yr, first, last, suffix, gender) data.frame(
+  ein = ein, taxyr = yr, name = trimws(paste(first, last, suffix)),
+  first_name = first, middle_name = NA_character_, last_name = last,
+  suffix = suffix, gender = gender, stringsAsFactors = FALSE)
+panel <- rbind(
+  rec("100", 2019, "JOHN", "SMITH", "SR", "M"),
+  rec("100", 2019, "ANN",  "JONES", "",   "F"),
+  rec("100", 2020, "JOHN", "SMITH", "SR", "M"),
+  rec("100", 2020, "ANN",  "JONES", "",   "F"),
+  rec("100", 2021, "JOHN", "SMITH", "SR", "M"),
+  rec("200", 2019, "MARY", "REED",  "",   "F"),
+  rec("200", 2020, "MARY", "REED",  "",   "F")
+)
+cs <- candidate_scores(panel)
+cs[, c("org", "yr_x", "yr_y", "first_name_x", "first_name_y",
+       "last_name_x", "last_name_y", "score")]
+```
+
+The true same-person pairs (JOHN SMITH across years, MARY REED across years) score
+well above the cross-person pairs, which the rescaled name comparators push
+sharply negative.
+
+## A learned check: unsupervised EM
+
+The hand weights are validated by fitting an **unsupervised** Fellegi–Sunter
+latent-class model to the comparison vectors — no labels — and reading off the
+learned agreement/disagreement weights:
+
+```{r em}
+cmp <- candidate_comparisons(panel)
+em  <- fit_match_model(cmp)     # method = "em"
+fs_weights(em)
+```
+
+On the real development panel the EM and hand-weighted methods agree on **99.85%**
+of accept/reject decisions, and the EM posterior is sharply bimodal — which is
+what makes `EMP_LINK_CONF` (emitted by `link_panel(method = "em")`) a meaningful
+confidence signal. `predict_match()` returns the calibrated per-pair probability.
+
+## Choosing a threshold
+
+The default `threshold = 7` was tuned against a labeled slice: pair-level
+precision 0.98 / recall 1.00 overall, and precision 0.985 / recall 0.955 on a
+family-board slice, with post-one-to-one precision ~0.999. Raise toward 8–8.5 for
+maximum precision (at some cost to family-board recall); lower for higher recall.
+
+## See also
+
+- [Getting started](getting-started.html) — the end-to-end walk-through.
+- `default_weights()`, `fs_weights()`, `candidate_comparisons()`,
+  `fit_match_model()`, `predict_match()` in the reference.
+```

@@ -1,0 +1,123 @@
+---
+title: "Scaling to the full panel"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Scaling to the full panel}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(synthid)
+```
+
+`link_panel()` runs in memory and is perfect for one organization's history or a
+development slice. A full multi-year national panel is millions of records, so the
+`dev/` scripts wrap `synthid` in a batched, parallel workflow. This article
+explains the model; the scripts themselves are the runnable reference.
+
+## The one fact that makes it embarrassingly parallel
+
+**The independent unit of work is one `EIN`.** Blocking, cluster closure, and the
+one-record-per-organization-year invariant are all *within-EIN*. There is no
+global state to precompute — even the surname-rarity weight is computed *per-EIN*
+inside `synthid` — so batches of whole EINs are fully independent.
+
+This yields one hard correctness rule:
+
+> Every `EIN` must land **wholly** in one batch. Splitting an EIN across batches
+> would silently corrupt its linkage.
+
+## The four stages
+
+```sh
+# A/B. Preprocess ONE year -> one Parquet file whose columns are exactly what
+#      link_panel() consumes. Runs classify_titles + parse_names, resolves to the
+#      authoritative filing per org-year, and stamps PERSON_YEAR_ID at ingest.
+Rscript dev/01_preprocess_year.R 2019
+Rscript dev/01_preprocess_year.R 2020
+Rscript dev/01_preprocess_year.R 2021
+
+# C. Stack every preprocessed year into one persistent DuckDB file and tile the
+#    DISTINCT eins into batches (so each EIN lands wholly in one batch).
+Rscript dev/02_build_duckdb.R 5000     # eins per batch
+
+# D. Link the batches, in parallel ACROSS batches; one Parquet part per batch.
+Rscript dev/03_run_batched.R 8         # n workers
+```
+
+Stage A/B is a rebuildable cache — run it once per tax year, never inside the
+linkage loop. Stages C and D rebuild cheaply from those Parquet files.
+
+## Why this layout
+
+- **DuckDB as the spine.** Years are stacked into one on-disk table; each worker
+  opens its *own read-only* connection (concurrent readers are safe) and pulls
+  just its batch with a single `JOIN` on the batch assignment.
+- **Parallelize across batches, not inside reclin2.** For typical org sizes,
+  `reclin2`'s own socket parallelism costs more than it saves. The scripts keep
+  every numeric library single-threaded inside each worker (`OMP_NUM_THREADS=1`,
+  `setDTthreads(1)`) and get the win from one core per batch, via `furrr`
+  `multisession` (Windows-safe, no forking).
+- **Nothing flows back through the main process** except a tiny per-batch summary;
+  each batch writes its own `part-NNNNN.parquet`.
+
+## `PERSON_YEAR_ID` and filing resolution happen at ingest
+
+Stage A/B is where each record gets its stable back-link to the source row, and
+where multiple filings for one org-year are resolved to the authoritative return.
+Both are described in [The two identifiers](identifiers.html). Doing this once, at
+preprocess, means the batched linkage never has to reason about amended returns.
+
+## The memoized comparator speedup
+
+Within a run, the same name pair is compared many times. `synthid` memoizes the
+expensive name comparators by default; on the development panel this is a ~15x
+linkage speedup. Crucially it is **byte-identical** to the unmemoized path — it is
+a pure cache, toggleable for A/B testing via an option:
+
+```{r memoize}
+panel <- rbind(
+  data.frame(ein = "100", taxyr = 2019, name = "JOHN SMITH", first_name = "JOHN",
+             middle_name = NA, last_name = "SMITH", suffix = "SR", gender = "M"),
+  data.frame(ein = "100", taxyr = 2020, name = "JOHN SMITH", first_name = "JOHN",
+             middle_name = NA, last_name = "SMITH", suffix = "SR", gender = "M"),
+  data.frame(ein = "100", taxyr = 2021, name = "JOHN SMITH", first_name = "JOHN",
+             middle_name = NA, last_name = "SMITH", suffix = "SR", gender = "M"),
+  stringsAsFactors = FALSE
+)
+
+o1 <- options(synthid.memoize_comparators = FALSE)
+base <- link_panel(panel)$EMP_ID
+options(o1)
+
+o2 <- options(synthid.memoize_comparators = TRUE)   # the default
+memo <- link_panel(panel)$EMP_ID
+options(o2)
+
+identical(base, memo)     # the cache never changes the answer
+```
+
+A second option, `synthid.first_name_comparator`, falls the first-name comparator
+back to plain Jaro–Winkler if you ever need to isolate its contribution.
+
+## Combining the output
+
+The per-batch Parquet parts in `data/linked/` share one schema and can be read
+back as a single table:
+
+```sh
+# e.g. with DuckDB:
+#   SELECT * FROM read_parquet('data/linked/part-*.parquet')
+```
+
+Because `EMP_ID` and `PERSON_YEAR_ID` are deterministic, re-running a single batch
+(after an upstream fix, say) leaves every other batch's ids untouched.
+
+## See also
+
+- `dev/01_preprocess_year.R`, `dev/02_build_duckdb.R`, `dev/03_run_batched.R`.
+- [The two identifiers](identifiers.html) and
+  [How the matching works](matching-methodology.html).
+```

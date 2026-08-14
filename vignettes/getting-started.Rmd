@@ -1,0 +1,192 @@
+---
+title: "Getting started: a panel walk-through"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started: a panel walk-through}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+library(synthid)
+```
+
+## What `synthid` does
+
+The upstream packages (`titleclassifier`, `peopleparser`) answer *"what is this
+record?"* — a parsed name, a standardized title. `synthid` answers a different
+question: *"**who** is this record, across years?"*
+
+Given a stacked, multi-year panel of Form 990 director/officer/trustee
+compensation rows, it assigns every record a **stable per-person identifier**,
+`EMP_ID`, that is consistent across tax years. That identifier is the keystone a
+longitudinal panel design rests on: the raw `person.id` in the source data is
+*not* stable across years, so a dedicated linkage layer is required.
+
+This article walks the whole pipeline on a tiny synthetic panel you can paste
+and run.
+
+## The input: a compensation panel
+
+`synthid` consumes a data frame with, at minimum, an organization id (`ein`), a
+tax year (`taxyr`), and a full `name`. If the parsed name components and a
+standardized title are present, they are used to sharpen the match. Here is a
+small panel with three organizations-worth of behavior baked in:
+
+```{r panel}
+panel <- rbind(
+  data.frame(ein = "100", taxyr = 2019, name = "JOHN SMITH SR",
+             first_name = "JOHN", last_name = "SMITH", suffix = "SR",
+             gender = "M", title.standard = "CEO"),
+  data.frame(ein = "100", taxyr = 2019, name = "JOHN SMITH JR",
+             first_name = "JOHN", last_name = "SMITH", suffix = "JR",
+             gender = "M", title.standard = "TREASURER"),
+  data.frame(ein = "100", taxyr = 2019, name = "ANN JONES",
+             first_name = "ANN", last_name = "JONES", suffix = "",
+             gender = "F", title.standard = "SECRETARY"),
+  data.frame(ein = "100", taxyr = 2020, name = "JOHN SMITH SR",
+             first_name = "JOHN", last_name = "SMITH", suffix = "SR",
+             gender = "M", title.standard = "CEO"),
+  data.frame(ein = "100", taxyr = 2020, name = "JOHN SMITH JR",
+             first_name = "JOHN", last_name = "SMITH", suffix = "JR",
+             gender = "M", title.standard = "TREASURER"),
+  data.frame(ein = "100", taxyr = 2021, name = "JOHN SMITH SR",
+             first_name = "JOHN", last_name = "SMITH", suffix = "SR",
+             gender = "M", title.standard = "CEO"),
+  # A different organization with a same-named person -- must NOT cross-link.
+  data.frame(ein = "200", taxyr = 2019, name = "JOHN SMITH SR",
+             first_name = "JOHN", last_name = "SMITH", suffix = "SR",
+             gender = "M", title.standard = "PRESIDENT"),
+  data.frame(ein = "200", taxyr = 2020, name = "JOHN SMITH SR",
+             first_name = "JOHN", last_name = "SMITH", suffix = "SR",
+             gender = "M", title.standard = "PRESIDENT"),
+  stringsAsFactors = FALSE
+)
+panel
+```
+
+There are three deliberate challenges here:
+
+- **A father/son pair on the same board** (`JOHN SMITH SR` and `JOHN SMITH JR`)
+  who share a first *and* last name and differ only by suffix. They must stay
+  **two** people.
+- **A person observed across three years** (`JOHN SMITH SR`, org 100) who should
+  collapse to **one** id spanning 2019-2021.
+- **A same-named person at a different organization** (`JOHN SMITH SR`, org 200)
+  who must **not** be linked to the org-100 Smiths.
+
+## Link the panel
+
+One call does the whole pipeline — prepare, block, compare, score, match, and
+close the accepted links into person clusters:
+
+```{r link}
+linked <- link_panel(panel)
+linked[, c("ein", "taxyr", "name", "suffix", "EMP_ID", "EMP_N_RECORDS", "EMP_N_YEARS")]
+```
+
+Read the added columns:
+
+- **`EMP_ID`** — the stable person identifier (a content hash of the cluster's
+  members, so it is reproducible across runs).
+- **`EMP_N_RECORDS`** — how many records are in the person's cluster.
+- **`EMP_N_YEARS`** — how many distinct tax years the person is observed.
+
+Check that the three challenges resolved correctly:
+
+```{r checks}
+# The org-100 SR appears in 3 years under ONE id.
+sr100 <- linked$EMP_ID[linked$ein == "100" & linked$suffix == "SR"]
+length(unique(sr100)) == 1L
+
+# Father and son (SR vs JR) are DIFFERENT people.
+jr100 <- linked$EMP_ID[linked$ein == "100" & linked$suffix == "JR"]
+unique(sr100) != unique(jr100)
+
+# The same-named person at org 200 is NOT the org-100 person.
+sr200 <- linked$EMP_ID[linked$ein == "200"]
+length(intersect(sr100, sr200)) == 0L
+```
+
+## The run report
+
+`synthid_report()` prints a summary of what happened — how many clusters formed,
+how many span multiple years, and how many links were blocked by the
+one-record-per-organization-year guard:
+
+```{r report}
+synthid_report(linked)
+```
+
+## How it decided (in one paragraph)
+
+Candidate pairs are formed **only within an organization and only across
+different tax years** — blocks are small, so every cross-year pair inside an org
+is compared. Each field contributes `weight x (2*similarity - 1)`; a missing
+field is neutral. Two touches matter for the panel above: the surname weight is
+scaled *per organization* by how rare the surname is inside that org, so agreeing
+on a common board surname carries little information and the **suffix / first
+name / gender** do the discriminating (this is what keeps SR and JR apart); and
+because pairs are only formed within an `ein`, the org-200 Smith is never even
+compared to the org-100 Smiths. Accepted links are then closed into clusters
+under a hard invariant: **a person holds at most one record per
+organization-year.**
+
+## A learned alternative: the EM model
+
+The default `method = "weighted"` uses a hand-set additive score. You can instead
+fit an **unsupervised** Fellegi-Sunter latent-class model to the candidate
+comparisons and link by the learned posterior match probability — no labels
+required. It also attaches `EMP_LINK_CONF`, the weakest link probability holding
+each cluster together:
+
+```{r em}
+linked_em <- link_panel(panel, method = "em")
+linked_em$EMP_LINK_CONF
+
+# The learned agreement / disagreement weights:
+fs_weights(attr(linked_em, "synthid")$model)
+```
+
+The EM fit doubles as a **validation of the hand weights** — on the real
+development panel the two methods agree on 99.85% of accept/reject decisions —
+and the posterior is sharply bimodal, which is what makes `EMP_LINK_CONF` a
+usable confidence signal for a downstream panel model.
+
+## Adapting to your column names
+
+If your panel names the organization or other fields differently, pass a modified
+column map. You can also raise the `threshold` for higher precision:
+
+```{r cols}
+cols <- synthid_cols()
+cols$org_id <- "ein"   # e.g. change to "ein9" for a 9-digit EIN column
+str(cols)
+
+# linked <- link_panel(panel, cols = cols, threshold = 8)
+```
+
+## Where the identifiers come from
+
+`EMP_ID` answers *who, across years*. There is a second identifier,
+`PERSON_YEAR_ID`, that answers *which source row* — a stable back-link from a
+linked record to its original Form 990 Part VII line, computed from the source
+key at ingest. The two are complementary: `EMP_ID` groups a person's rows
+together; `PERSON_YEAR_ID` ties each of those rows back to the raw filing it came
+from. See the function reference for
+[`person_year_id()`](../reference/person_year_id.html) and
+[`create_emp_ids()`](../reference/create_emp_ids.html).
+
+## Where to go next
+
+- The [function reference](../reference/index.html), grouped by subsystem
+  (panel linkage, identifiers, match model, name comparison, cross-organization
+  linkage, title roles, and link review).
+- `link_panel()` for the full set of arguments (`method`, `threshold`,
+  `weights`, `prob_threshold`).
+- `default_weights()` and `fs_weights()` to inspect and tune the scoring.
+```

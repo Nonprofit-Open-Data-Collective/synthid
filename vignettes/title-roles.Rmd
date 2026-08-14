@@ -1,0 +1,97 @@
+---
+title: "Title roles: BOARD / OFFICER / STAFF / OTHER"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Title roles: BOARD / OFFICER / STAFF / OTHER}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(synthid)
+```
+
+The `title.standard` vocabulary from `titleclassifier` has ~250 values — too fine
+to reason about the *composition* of a match. `classify_title_role()` collapses it
+into four coarse roles used by cross-organization linkage and interlock studies.
+
+## The four roles
+
+```{r classify}
+classify_title_role(c(
+  "BOARD PRESIDENT", "BOARD SECRETARY", "TREASURER",   # governance -> BOARD
+  "CHIEF FINANCIAL OFFICER", "EXECUTIVE DIRECTOR",      # management -> OFFICER
+  "VICE PRESIDENT",                                     # governance -> BOARD
+  "VICE PRESIDENT OF FINANCE",                          # functional -> STAFF
+  "DIRECTOR OF MARKETING",                              # functional -> STAFF
+  "CHAPLAIN"                                            # unmatched  -> OTHER
+))
+```
+
+- **`BOARD`** — the governance body and its elected officers. Per the interlock
+  use case, the governance triad (president / treasurer / secretary) is `BOARD`,
+  **not** `OFFICER`.
+- **`OFFICER`** — paid executive leadership: the C-suite, executive director,
+  general manager, general counsel, comptroller.
+- **`STAFF`** — other paid employees: functional directors and vice presidents,
+  managers, coordinators, clerks.
+- **`OTHER`** — anything unmatched (e.g. `CHAPLAIN`, `HISTORIAN`), by design, so
+  the classifier stays safe on the long tail.
+
+### The distinction that does the work
+
+A governance title carrying a **functional** qualifier is a paid post, not a
+governance seat. Any title containing `" OF "` is excluded from `BOARD`:
+
+```{r ofrule}
+classify_title_role(c("VICE PRESIDENT", "VICE PRESIDENT OF FINANCE"))
+```
+
+By default the result is an ordered factor (`levels = TRUE`) so roles sort
+`BOARD < OFFICER < STAFF < OTHER`; pass `levels = FALSE` for a plain character
+vector.
+
+## Inspecting the rules
+
+The rule set is exported and inspectable — the classifier is not a black box:
+
+```{r rules}
+str(title_role_rules(), max.level = 1)
+```
+
+## Auditing coverage and pinning exceptions
+
+Because unmatched titles fall to `OTHER` on purpose, you should audit what lands
+there for your corpus. `title_role_coverage()` returns one row per distinct title
+with its frequency and assigned role:
+
+```{r coverage}
+titles <- c(rep("BOARD PRESIDENT", 5), rep("EXECUTIVE DIRECTOR", 3),
+            rep("DIRECTOR OF NURSING", 2), "SERGEANT AT ARMS", "CHAPLAIN")
+cov <- title_role_coverage(titles)
+cov
+
+# The tail worth reviewing:
+subset(cov, role == "OTHER")
+```
+
+When you find a title in `OTHER` that belongs elsewhere, pin it with `overrides`
+instead of editing rules — the override wins:
+
+```{r overrides}
+classify_title_role(c("SERGEANT AT ARMS", "CHAPLAIN"),
+                    overrides = c("SERGEANT AT ARMS" = "BOARD"))
+```
+
+## Where roles are used
+
+Role assignment drives the edge filters in cross-organization linkage —
+`board_only_edges()` keeps board-to-board interlocks, `non_board_edges()` the
+rest. See [Cross-organization linkage](cross-org.html).
+
+## See also
+
+- `classify_title_role()`, `title_role_rules()`, `title_role_coverage()` in the
+  reference.
+```
