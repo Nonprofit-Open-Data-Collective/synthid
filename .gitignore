@@ -1,0 +1,34 @@
+# --- R ---
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*_cache/
+/.quarto/
+
+# --- OS / editor junk ---
+.DS_Store
+Thumbs.db
+
+# --- Claude Code local settings ---
+.claude/settings.local.json
+
+# --- Large raw data (NEVER commit; multi-GB, and >100MB is rejected by GitHub) ---
+# Raw NCCS Part VII compensation CSVs and any local slices live here.
+dev/data/
+
+# --- Generated dev artifacts (reproducible from the scripts) ---
+# fitted models, cached candidate scores, comparison frames
+dev/*.rds
+# tuning run logs
+dev/*.out
+# generated diagnostic plots
+dev/*.png
+# generated eval/review exports
+dev/*.csv
+
+# --- Pipeline outputs (dev/02_build_duckdb.R, dev/03_run_batched.R) ---
+/data/preproc/
+/data/linked/
+*.duckdb
+*.parquet

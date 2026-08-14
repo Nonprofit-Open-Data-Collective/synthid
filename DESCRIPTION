@@ -1,0 +1,30 @@
+Package: synthid
+Title: Cross-Year Person Linkage and Synthetic ID Assignment for Nonprofit Compensation Panels
+Version: 0.1.0
+Authors@R:
+    person("Jesse", "Lecy", email = "jdlecy@gmail.com", role = c("aut", "cre"))
+Description: Builds a stable cross-year person identifier ("EMP_ID") for panels of
+    IRS Form 990 director/officer/trustee compensation records. Consumes the parsed
+    output of the titleclassifier and peopleparser packages (name components and
+    standardized titles), links records of the same person across tax years within
+    an organization, resolves the pairwise links into connected-component clusters,
+    and stamps one deterministic synthetic identifier on every record of a person.
+    Record comparison uses reclin2 with a compound last-name comparator and a
+    within-organization surname-frequency adjustment so that agreement on a common
+    family surname carries little weight on a family-dominated board.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1)
+Imports:
+    purrr,
+    reclin2,
+    rlang,
+    stats,
+    stringdist
+Suggests:
+    readr,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
