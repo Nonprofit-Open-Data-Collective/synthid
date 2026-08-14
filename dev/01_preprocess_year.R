@@ -69,11 +69,44 @@ message(sprintf("[%d] %d raw Part VII rows", year, nrow(raw)))
 gs4_deauth()
 classified <- titleclassifier::classify_titles(raw, preserve_input = TRUE)
 
-# --- Collapse to ONE row per person-year -----------------------------------
+# --- B1.5 Resolve to ONE authoritative filing per org-year -----------------
+# EIN+TAXYR is NOT the filing grain: an organization can submit several returns
+# for the same tax year (an original plus amendments), each a distinct OBJECTID
+# carrying its own independent TID-00001..N sequence. If left in, the same person
+# appears once per filing -- inflating the panel and letting superseded (stale)
+# returns feed downstream data. Keep only the most recent submission per org-year
+# (latest RETURN_TIME_STAMP; amended-preferred, then max OBJECTID as a
+# deterministic final tie-break). Done in base R on extracted vectors so
+# classify_titles()'s data.table IDate columns can't break the operation.
+.oid <- as.character(classified[["OBJECTID"]])
+.oy  <- paste(as.character(classified[["ein"]]), as.character(classified[["taxyr"]]))
+.ts  <- as.character(classified[["RETURN_TIME_STAMP"]]); .ts[is.na(.ts)] <- ""
+.am  <- toupper(trimws(as.character(classified[["RETURN_AMENDED_X"]]))) %in%
+          c("TRUE", "T", "1", "X", "Y", "YES")
+.first  <- !duplicated(.oid)                       # one row per filing
+filings <- data.frame(OBJECTID = .oid[.first], oy = .oy[.first],
+                      ts = .ts[.first], amended = .am[.first],
+                      stringsAsFactors = FALSE)
+# Ascending sort puts the winner last within each org-year; take the last.
+filings <- filings[order(filings$oy, filings$ts, filings$amended, filings$OBJECTID), ]
+winners <- filings$OBJECTID[!duplicated(filings$oy, fromLast = TRUE)]
+.keep   <- .oid %in% winners
+n_multi <- sum(table(filings$oy) > 1L)
+message(sprintf(
+  "[%d] filing-resolution: %d org-year(s) had multiple filings; dropped %d of %d rows from superseded returns",
+  year, n_multi, sum(!.keep), length(.keep)))
+classified <- classified[.keep, ]
+rm(.oid, .oy, .ts, .am, .first, filings, winners, .keep)
+
+# --- Collapse to ONE row per person (source Part VII line) -----------------
 # split_titles() emits one row per title, so a person holding N titles appears
-# N times in the same org-year. synthid enforces "one record per org-year" per
-# person, so we must collapse first or every multi-title person splits into N
-# separate people. Here we keep the PRIMARY title (title.order == 1).
+# N times. We collapse to the source person-line grain -- (OBJECTID, TABLE_ID) --
+# keeping the PRIMARY title (title.order == 1). TABLE_ID is the stored per-person
+# key within a filing and is unique there, so after filing-resolution above this
+# is exactly one row per person per org-year, and -- unlike the former
+# ein+taxyr+dtk.name key -- it keeps two genuinely different people who share a
+# name in the same filing as distinct records (PERSON_YEAR_ID then maps 1:1 to
+# panel rows, collision-free by construction).
 #
 # DECISION POINT (revisit with domain judgment): alternatives are keep the
 # highest-comp title, or concatenate titles into one string. Change the
@@ -95,7 +128,7 @@ keep_cols <- intersect(keep_cols, names(as.data.frame(classified)))
 person_year <- as.data.frame(classified)[, keep_cols] %>%
   mutate(title.order = suppressWarnings(as.numeric(.data$title.order)),
          title.order = ifelse(is.na(.data$title.order), 1, .data$title.order)) %>%
-  group_by(.data$ein, .data$taxyr, .data$dtk.name) %>%
+  group_by(.data$OBJECTID, .data$TABLE_ID) %>%
   slice_min(.data$title.order, n = 1, with_ties = FALSE) %>%
   ungroup()
 message(sprintf("[%d] %d classified rows -> %d person-year rows",
