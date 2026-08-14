@@ -23,7 +23,8 @@ Imports:
     reclin2,
     rlang,
     stats,
-    stringdist
+    stringdist,
+    utils
 Suggests:
     readr,
     testthat (>= 3.0.0)

@@ -21,6 +21,26 @@ organization-year together, and stamp one stable \code{EMP_ID} per cluster.
 \item \code{\link[=link_panel]{link_panel()}} -- the end-to-end orchestrator over the three steps.
 }
 }
+\section{Reviewing a linkage}{
+
+A separate triage layer audits the output of \code{\link[=link_panel]{link_panel()}} and feeds the
+upstream name parser. It does not change any \code{EMP_ID}; it only surfaces
+records worth a second look.
+\itemize{
+\item \code{\link[=flag_links]{flag_links()}} scores every multi-record person on cross-year name
+consistency and sorts each questionable cluster into one primary
+\code{category} (nickname/spelling, compound surname, field-order swap, a
+parser artifact, or the residual \code{review}). \code{\link[=link_review_queue]{link_review_queue()}} returns
+just the \code{review} cases -- the genuinely uncertain links.
+\item \code{\link[=parse_fail_log]{parse_fail_log()}} scans records for recoverable \emph{parser} defects
+(a honorific fused to the given name, credentials leaked into the surname,
+a stray initial glued to the surname) and emits one \verb{input -> wrong parse -> expected} row each, usable directly as \pkg{peopleparser} regression
+fixtures. \code{\link[=parse_fail_tokens]{parse_fail_tokens()}} rolls that log up into the small list of
+candidate title/credential tokens to add upstream.
+}
+See \code{dev/generate_link_review.R} for the end-to-end review + handoff run.
+}
+
 \author{
 \strong{Maintainer}: Jesse Lecy \email{jdlecy@gmail.com}
 
