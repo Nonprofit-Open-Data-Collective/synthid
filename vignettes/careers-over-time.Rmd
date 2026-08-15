@@ -1,0 +1,231 @@
+---
+title: "Careers over time: transitions, promotions, and churn"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Careers over time: transitions, promotions, and churn}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(synthid)
+```
+
+Once [`link_panel()`](../reference/link_panel.html) has stamped a stable `EMP_ID`
+on every record, the panel stops being a pile of person-years and becomes a set of
+*careers* you can read over time. Three functions answer three questions:
+
+- **[`flag_position_transitions()`](../reference/flag_position_transitions.html)** —
+  when does the *person* holding a seat change? (succession)
+- **[`flag_promotions()`](../reference/flag_promotions.html)** — when does a
+  *person's own title* genuinely advance? (promotion, net of labeling noise)
+- **[`position_churn()`](../reference/position_churn.html)** — how does a *body*
+  such as a board turn over year to year? (churn)
+
+All three read change off the `EMP_ID` clusters, so they run on the output of
+`link_panel()`. The examples below hand-stamp `EMP_ID` to stay deterministic; in
+practice it comes from the linkage step.
+
+## A small linked panel
+
+One record per organization-year per person, exactly as `link_panel()` returns.
+Organization `A` has an Executive Director seat and a five-person board.
+
+```{r panel}
+rec <- function(ein, taxyr, EMP_ID, name, title.standard) {
+  data.frame(ein, taxyr, EMP_ID, name, title.standard, stringsAsFactors = FALSE)
+}
+linked <- rbind(
+  # --- the Executive Director seat: ALICE, then a vacant year, then BOB ---
+  rec("A", 2018, "E-ALICE", "ALICE REYES", "EXECUTIVE DIRECTOR"),
+  rec("A", 2019, "E-ALICE", "ALICE REYES", "EXECUTIVE DIRECTOR"),
+  rec("A", 2021, "E-BOB",   "BOB NGUYEN",  "EXECUTIVE DIRECTOR"),
+  # --- the board, with some turnover ---
+  rec("A", 2018, "E-P", "PAT LEE",   "TRUSTEE"),
+  rec("A", 2018, "E-Q", "QUINN ABE", "TRUSTEE"),
+  rec("A", 2018, "E-R", "RILEY COX", "BOARD PRESIDENT"),
+  rec("A", 2018, "E-S", "SAM DIAZ",  "TRUSTEE"),
+  rec("A", 2018, "E-T", "TONI FALK", "TRUSTEE"),
+  rec("A", 2019, "E-P", "PAT LEE",   "TRUSTEE"),
+  rec("A", 2019, "E-Q", "QUINN ABE", "TRUSTEE"),
+  rec("A", 2019, "E-R", "RILEY COX", "BOARD PRESIDENT"),
+  rec("A", 2019, "E-S", "SAM DIAZ",  "TRUSTEE"),
+  rec("A", 2019, "E-U", "UMA GHOSH", "TRUSTEE"),      # U in, T out
+  rec("A", 2020, "E-P", "PAT LEE",   "TRUSTEE"),
+  rec("A", 2020, "E-Q", "QUINN ABE", "TRUSTEE"),
+  rec("A", 2020, "E-R", "RILEY COX", "BOARD PRESIDENT"),
+  rec("A", 2020, "E-V", "VIC HALE",  "TRUSTEE"),      # V, W in; S, U out
+  rec("A", 2020, "E-W", "WES IRWIN", "TRUSTEE"),
+  rec("A", 2021, "E-P", "PAT LEE",   "TRUSTEE"),
+  rec("A", 2021, "E-Q", "QUINN ABE", "TRUSTEE"),
+  rec("A", 2021, "E-R", "RILEY COX", "BOARD PRESIDENT"),
+  rec("A", 2021, "E-V", "VIC HALE",  "TRUSTEE"),
+  rec("A", 2021, "E-W", "WES IRWIN", "TRUSTEE")
+)
+```
+
+## 1. Position transitions
+
+A *transition* is a **new `EMP_ID` taking a seat that a different person held
+before** — the title stays put, the person underneath it changes. Point the
+function at the seat by title (or by `role`, e.g. `role = "BOARD"`):
+
+```{r transitions}
+tr <- flag_position_transitions(linked, position = "EXECUTIVE DIRECTOR")
+tr[, c("taxyr", "EMP_ID", "prev_year", "incoming", "transition", "predecessor")]
+```
+
+`ALICE` in 2018 is `incoming` (first occupant) but **not** a transition — there was
+no predecessor to succeed. The interesting case is the vacancy: the seat is empty
+in 2020, then `BOB` appears in 2021. By default the reference point is the prior
+**filing** year (2020, when the seat was vacant), so `BOB` reads as a fresh
+establishment, not a succession:
+
+```{r transitions-strict}
+subset(tr, EMP_ID == "E-BOB", c(taxyr, prev_year, transition, predecessor))
+```
+
+Set `gap_tolerant = TRUE` to measure against the last year the seat was actually
+**occupied**, bridging the vacancy back to `ALICE`:
+
+```{r transitions-gap}
+trg <- flag_position_transitions(linked, position = "EXECUTIVE DIRECTOR",
+                                 gap_tolerant = TRUE)
+subset(trg, EMP_ID == "E-BOB",
+       c(taxyr, prev_year, years_since_prev, transition, predecessor))
+```
+
+Now `BOB`'s arrival is a transition, its `predecessor` is `ALICE`, and
+`years_since_prev` records the two-year span it bridged. Use strict when a vacancy
+should *not* read as a handover; use gap-tolerant to follow a seat across gaps.
+
+Transitions work best on a one- or two-holder seat. For a whole body, measure
+churn instead.
+
+## 2. Position churn
+
+`position_churn()` accounts for turnover in a *set* of people. Select the board by
+its role and it reports, per year, how many hold the seat, and — against the prior
+year — how many are **new**, how many **left**, and how many are **stable**:
+
+```{r churn}
+position_churn(linked, role = "BOARD")
+```
+
+Read 2019: the board still has five members, but one is new (`UMA`), one left
+(`TONI`), and four are stable — `retention = 4/5`. 2020 is a bigger shake-up
+(`SAM` and `UMA` out, `VIC` and `WES` in); 2021 is fully stable. The first year is
+`NA` for the flow columns because there is no prior year to compare against.
+
+Pass `by_org = FALSE` to pool the whole panel into one population-level churn
+series instead of one per organization (pass a cross-org id to `id=` if you want to
+avoid counting a person once per organization).
+
+## 3. Promotions
+
+A person's title changing is *not* enough to call a promotion: titles are reported
+inconsistently year to year, so a naive diff over-counts wildly.
+`flag_promotions()` inspects each person's **upstream** history and compares
+**both** the raw and standardized titles to sort every change into one of four
+kinds. It needs the richer columns (`title.raw`, `tot.comp`):
+
+```{r promo-data}
+prec <- function(ein, taxyr, EMP_ID, std, raw = std, comp = NA_real_) {
+  data.frame(ein, taxyr, EMP_ID, name = EMP_ID,
+             title.standard = std, title.raw = raw, tot.comp = comp,
+             stringsAsFactors = FALSE)
+}
+careers <- rbind(
+  # a real promotion: paid role move with a pay jump
+  prec("B", 2018, "E-X", "PROGRAM DIRECTOR",        comp = 60000),
+  prec("B", 2019, "E-X", "EXECUTIVE DIRECTOR",      comp = 95000),
+  prec("B", 2020, "E-X", "EXECUTIVE DIRECTOR",      comp = 96000),
+  # a standardizer relabel: raw title identical, standard label wobbled
+  prec("C", 2018, "E-Y", "CHIEF EXECUTIVE OFFICER", raw = "CEO", comp = 1e5),
+  prec("C", 2019, "E-Y", "EXECUTIVE DIRECTOR",      raw = "CEO", comp = 1e5),
+  # noise: a one-year blip that reverts, and a label seen upstream
+  prec("D", 2018, "E-Z", "MANAGER"),
+  prec("D", 2019, "E-Z", "DIRECTOR OF OPERATIONS"),
+  prec("D", 2020, "E-Z", "MANAGER")
+)
+pr <- flag_promotions(careers)
+pr[, c("EMP_ID", "from_year", "from_title", "to_title",
+       "change_type", "direction", "comp_change")]
+```
+
+The `change_type` factor separates the signal from three kinds of noise:
+
+- **`real`** — a novel, persistent title move. `E-X` going PROGRAM DIRECTOR →
+  EXECUTIVE DIRECTOR with pay $60k → $95k is a `promotion` (direction is read from
+  the compensation change when present, else a coarse role rank).
+- **`relabel`** — `E-Y`'s CEO → Executive Director is the *same* post: the raw
+  title (`CEO`) never changed, only the standardizer's label did. Agreement on
+  **either** the raw or standardized view marks it a relabel, not a move.
+- **`transient` / `oscillation`** — `E-Z`'s MANAGER → DIRECTOR OF OPERATIONS
+  reverts the next year (`transient`), and the return to MANAGER matches a label
+  held upstream (`oscillation`). Both are flip-flopping labels, not advancement.
+
+Filter to what you mean by a promotion:
+
+```{r promo-real}
+subset(pr, change_type == "real" & direction == "promotion",
+       c(EMP_ID, from_title, to_title, comp_change))
+```
+
+## Reading the print summaries
+
+Each function returns a classed data frame whose `print` method leads with a
+compact summary before the rows — handy at the console:
+
+```{r print}
+flag_promotions(careers)
+```
+
+## Sanity-checking the flag against pay
+
+A useful independent check on the transition flag: in a nonprofit the chief
+executive is *usually* the highest-paid person, so following the **top earner** as
+its own synthetic seat should broadly agree with following the CEO/ED title. You
+can build that seat with the same machinery — mark the highest-paid `EMP_ID` per
+organization-year and run `flag_position_transitions()` on it:
+
+```{r topearner}
+top_earner_seat <- function(df) {
+  paid <- df[!is.na(df$tot.comp) & df$tot.comp > 0, ]
+  by <- paste(paid$ein, paid$taxyr, sep = "\r")
+  top <- do.call(rbind, lapply(split(paid, by), function(g) {
+    g <- g[order(-g$tot.comp, g$EMP_ID), ][1, ]
+    g$title.standard <- "TOP_EARNER"; g
+  }))
+  flag_position_transitions(top, position = "TOP_EARNER")
+}
+```
+
+On the full 15-year reference panel the two views agree on ~88–90% of
+organization-year steps, and the CEO/ED is the top earner in ~88% of
+organization-years. The disagreements are all explainable rather than flag errors:
+a highly paid non-executive (a physician, a coach) can out-earn the director, and
+in the transition year itself an incoming director is often only partially paid —
+so "highest paid" is a noisier seat than the title, which is exactly why the
+title-based flag is the primary signal and pay is the corroborating one.
+
+## Practical notes
+
+- **Denominator.** Turnover is only defined for organizations that *have* the seat.
+  Only ~1 in 3 filers report a paid CEO/ED at all — the rest are all-volunteer, or
+  led by a paid President that [`classify_title_role()`](../reference/classify_title_role.html)
+  treats as `BOARD`. Report transitions against organizations-with-a-seat, not all
+  organizations.
+- **Link quality bounds turnover.** A year the linker fails to connect a person
+  reads as one departure plus one arrival, so churn is a slight *over*-estimate of
+  true turnover. A 100% single-year board turnover is almost always a linkage or
+  filing-gap artifact, not a board replacing itself overnight — inspect those
+  rather than trusting them.
+
+## See also
+
+- [`link_panel()`](../reference/link_panel.html) — produce the `EMP_ID` these
+  functions read.
+- [Title roles](title-roles.html) — the `BOARD` / `OFFICER` / `STAFF` / `OTHER`
+  taxonomy used by `role =` selection.
