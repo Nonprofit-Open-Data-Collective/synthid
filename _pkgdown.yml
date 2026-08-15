@@ -29,6 +29,8 @@ navbar:
         href: articles/cross-org.html
       - text: Title roles
         href: articles/title-roles.html
+      - text: Careers over time - transitions, promotions, churn
+        href: articles/careers-over-time.html
       - text: Scaling to the full panel
         href: articles/scaling.html
 
@@ -101,6 +103,16 @@ reference:
   - classify_title_role
   - title_role_rules
   - title_role_coverage
+
+- title: Careers over time
+  desc: >
+    Read change off the linked panel: when the person holding a seat changes
+    (transitions), when a person's own title genuinely advances (promotions),
+    and how a body such as a board turns over year to year (churn).
+  contents:
+  - flag_position_transitions
+  - flag_promotions
+  - position_churn
 
 - title: Link review and parser triage
   desc: >
