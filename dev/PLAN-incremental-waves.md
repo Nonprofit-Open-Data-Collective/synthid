@@ -120,9 +120,13 @@ components, org, year, and — for anchoring — OBJECTID/TABLE_ID) and `new`
    `candidate_pairs`).
 4. **Score** each (wave-profile, existing-profile) candidate with the cross-org
    set-scorer: `.best_set_sim()` over the variant sets with `compare_last_names` /
-   `compare_first_names`, `score_pairs()`. Surname frequency uses the
-   **within-org** `surname_weight()` (family-board logic) computed over the merged
-   org membership — not the population weight; a wave attaches within an org.
+   `compare_first_names`, `score_pairs()`. **Surname frequency: population rarity**
+   (`population_surname_weight()` over the merged profile set) — *revised from the
+   original within-org note during Phase 2.* At the match stage both people are
+   already distinct identities (wave-internal linkage did the family-board
+   separation), so the surname weight only calibrates how surprising the agreement
+   is *across the wave boundary* (`SMITH` weak, `GANTSOUDES` strong) — exactly the
+   cross-org question. Overridable via `surname_weight=`.
 5. **Accept** edges ≥ `threshold`, **greedy one-to-one** (`greedy_one_to_one()`),
    under the **one-record-per-(org,year) invariant across the merged timeline**:
    a wave-person may merge into an existing person only if their `(org, year)`
@@ -161,8 +165,10 @@ follow it. Splits are review-only, not automatic.
 
 - `emp_anchor_key(df, cols)` — deterministic-earliest anchor per cluster (§3.2).
 - `anchor_emp_id(anchor_key)` — hash → `EMP_ID` (with version tag).
-- `match_to_profiles(new, profiles, ...)` — the block+score+assign core (steps
-  2–5); reused by wave-matching and callable standalone.
+- `match_to_profiles(wave, existing, ...)` — the block+score+assign core (steps
+  3–5); reused by wave-matching and callable standalone. **DONE (Phase 2,
+  `R/incremental.R`)** with `same_org_candidate_pairs()` blocker; returns
+  `matched` / `unmatched` / `review` (ambiguous + invariant-collision) / `report`.
 - `link_incremental(existing, new, ...)` — the full pipeline (steps 1–6).
 - `remint_anchored(linked)` — one-time migration: add `EMP_ANCHOR` and re-mint
   `EMP_ID` on an old membership-hash panel; emits the old→new crosswalk.
