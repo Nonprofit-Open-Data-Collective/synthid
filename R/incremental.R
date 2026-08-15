@@ -201,3 +201,156 @@ match_to_profiles <- function(wave, existing, weights = default_weights(),
 
   finish(matched, review, nrow(cand), nrow(collided))
 }
+
+#' Integrate a new wave of data into an already-linked panel
+#'
+#' End-to-end incremental linkage: attach a new wave of records (a later year, a
+#' multi-year batch, or a backfill of missing years) to a frozen, already-linked
+#' panel, **reusing the existing person ids instead of re-minting them**. This is
+#' the third linkage mode -- distinct from the initial batch build ([link_panel()],
+#' all record-pairs within an org) and cross-org interlock ([link_cross_org()],
+#' profiles across orgs); see `dev/PLAN-incremental-waves.md`.
+#'
+#' The wave is first linked **internally** ([link_panel()] over `new` alone), so a
+#' first-time person appearing across several wave years becomes one wave-person;
+#' the wave-people are then matched to the existing people
+#' ([match_to_profiles()]). A matched wave-person **inherits** the existing
+#' `EMP_ID` and `EMP_ANCHOR` -- which is what freezes an id across a backfill: an
+#' earlier record for a known person takes that person's existing anchor rather
+#' than re-anchoring. An unmatched wave-person keeps its freshly minted anchored
+#' wave-local id (a genuinely new person).
+#'
+#' `new` rows whose native `(OBJECTID, TABLE_ID)` key already appears in `existing`
+#' are exact re-loads, not new data; they are dropped with a warning so they do
+#' not spawn duplicate people.
+#'
+#' @param existing A panel already linked under the anchored scheme: must carry
+#'   `EMP_ID` **and** `EMP_ANCHOR` (run [link_panel()], or migrate a legacy panel
+#'   with [remint_anchored()], first).
+#' @param new The new wave: parsed records in the same schema as `existing`, with
+#'   no ids yet.
+#' @param cols Column mapping; see [synthid_cols()].
+#' @param weights Base match weights; see [default_weights()].
+#' @param method Wave-internal linkage method, passed to [link_panel()].
+#' @param link_threshold Threshold for the wave-internal [link_panel()]
+#'   (`method = "weighted"`).
+#' @param match_threshold Threshold for the wave<->existing match
+#'   ([match_to_profiles()]); wants its own tuning (profile-vs-profile scale).
+#' @param prob_threshold Posterior threshold for the wave-internal link when
+#'   `method = "em"`.
+#' @param surname_weight Optional precomputed surname-rarity vector for the match
+#'   stage; see [match_to_profiles()].
+#' @param max_block_size Oversize-bucket guard for the match blocker.
+#' @param verbose Print progress.
+#' @return A list:
+#'   \describe{
+#'     \item{`new_stamped`}{The genuinely-new wave rows (re-loads removed) with
+#'       `EMP_ID` and `EMP_ANCHOR` stamped -- inherited for returning people,
+#'       freshly minted for first-time people. `rbind()` onto `existing` (after
+#'       aligning columns) to grow the panel; recompute any per-person counts on
+#'       the merged result.}
+#'     \item{`review`}{Ambiguous / invariant-collision pairs from the match, for
+#'       eyeballing (see [match_to_profiles()]); never auto-merged.}
+#'     \item{`unmatched`}{Wave-local `EMP_ID`s judged first-time people.}
+#'     \item{`wave_id_map`}{`wave` (wave-local id) -> `final_id`, `final_anchor`,
+#'       `matched` -- the audit trail of every wave-person's resolution.}
+#'     \item{`report`}{Counts for the run.}
+#'   }
+#' @examples
+#' \dontrun{
+#' existing <- link_panel(panel_2019_2023)       # anchored ids + EMP_ANCHOR
+#' wave     <- readr::read_csv("PANEL-2024.csv")
+#' res <- link_incremental(existing, wave)
+#' merged <- rbind(existing[names(res$new_stamped)], res$new_stamped)
+#' subset(res$review, reason == "ambiguous")      # spot-check borderline matches
+#' }
+#' @seealso [match_to_profiles()], [link_panel()], [remint_anchored()]
+#' @export
+link_incremental <- function(existing, new, cols = synthid_cols(),
+                             weights = default_weights(),
+                             method = c("weighted", "em"),
+                             link_threshold = 7, match_threshold = 7,
+                             prob_threshold = 0.5, surname_weight = NULL,
+                             max_block_size = 5000L, verbose = FALSE) {
+  say <- function(...) if (verbose) message(...)
+  method <- match.arg(method)
+  stopifnot(is.data.frame(existing), is.data.frame(new))
+  if (!"EMP_ID" %in% names(existing)) {
+    stop("link_incremental(): `existing` must be linked first (needs EMP_ID); ",
+         "run link_panel().", call. = FALSE)
+  }
+  if (!"EMP_ANCHOR" %in% names(existing)) {
+    stop("link_incremental(): `existing` lacks EMP_ANCHOR (anchored id scheme). ",
+         "Re-mint it with remint_anchored() first.", call. = FALSE)
+  }
+
+  ## Drop exact re-loads: wave rows whose native key already exists upstream.
+  n_reload <- 0L
+  if (all(c(cols$object_id, cols$table_id) %in% names(existing)) &&
+      all(c(cols$object_id, cols$table_id) %in% names(new))) {
+    ekey <- paste(existing[[cols$object_id]], existing[[cols$table_id]], sep = "\r")
+    nkey <- paste(new[[cols$object_id]], new[[cols$table_id]], sep = "\r")
+    reload <- nkey %in% ekey
+    n_reload <- sum(reload)
+    if (n_reload > 0L) {
+      warning(n_reload, " wave row(s) share an (OBJECTID, TABLE_ID) with `existing` ",
+              "(exact re-loads); dropping them so they do not spawn duplicate people.",
+              call. = FALSE)
+      new <- new[!reload, , drop = FALSE]
+    }
+  }
+
+  empty_map <- data.frame(wave = character(0), final_id = character(0),
+                          final_anchor = character(0), matched = logical(0),
+                          stringsAsFactors = FALSE)
+  if (nrow(new) == 0L) {
+    new_stamped <- new
+    new_stamped$EMP_ID <- character(0); new_stamped$EMP_ANCHOR <- character(0)
+    empty_review <- data.frame(wave_emp_id = character(0), existing_emp_id = character(0),
+                               score = numeric(0), reason = character(0),
+                               stringsAsFactors = FALSE)
+    return(list(new_stamped = new_stamped, review = empty_review,
+                unmatched = character(0), wave_id_map = empty_map,
+                report = list(n_new_rows = 0L, n_reload_rows_dropped = n_reload)))
+  }
+
+  say("Profiling existing panel (", nrow(existing), " rows)...")
+  existing_prof <- build_person_profile(existing, cols = cols)
+
+  say("Linking the wave internally (", nrow(new), " rows)...")
+  wave_linked <- link_panel(new, cols = cols, weights = weights,
+                            threshold = link_threshold, method = method,
+                            prob_threshold = prob_threshold, verbose = verbose)
+  wave_prof <- build_person_profile(wave_linked, cols = cols)
+
+  say("Matching wave-people to existing people...")
+  m <- match_to_profiles(wave_prof, existing_prof, weights = weights,
+                         threshold = match_threshold, surname_weight = surname_weight,
+                         max_block_size = max_block_size, verbose = verbose)
+
+  ## Resolve each wave-local person to a final id/anchor: inherit if matched,
+  ## else keep the freshly minted wave-local id (a first-time person).
+  map <- data.frame(wave = wave_prof$EMP_ID, final_id = wave_prof$EMP_ID,
+                    final_anchor = wave_prof$EMP_ANCHOR, matched = FALSE,
+                    stringsAsFactors = FALSE)
+  if (nrow(m$matched)) {
+    j <- match(m$matched$wave_emp_id, map$wave)
+    map$final_id[j] <- m$matched$existing_emp_id
+    map$final_anchor[j] <- m$matched$existing_emp_anchor
+    map$matched[j] <- TRUE
+  }
+
+  pos <- match(wave_linked$EMP_ID, map$wave)
+  new_stamped <- new
+  new_stamped$EMP_ID <- map$final_id[pos]
+  new_stamped$EMP_ANCHOR <- map$final_anchor[pos]
+
+  report <- c(m$report, list(
+    n_new_rows = nrow(new), n_reload_rows_dropped = n_reload,
+    n_rows_returning = sum(map$matched[pos]),
+    n_rows_first_time = sum(!map$matched[pos]),
+    link_method = method))
+
+  list(new_stamped = new_stamped, review = m$review, unmatched = m$unmatched,
+       wave_id_map = map, report = report)
+}

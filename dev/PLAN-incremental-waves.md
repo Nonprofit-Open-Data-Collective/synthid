@@ -96,6 +96,12 @@ seen* — it picks the deterministic-earliest of whatever cluster it sees. So:
 > `link_panel` and `link_incremental` share one recipe. Bump a `keyspec`-style
 > version tag on the ID so pre/post-migration IDs can never silently collide.
 
+> **STATUS: Phases 1–3 implemented** (branch `feat/incremental-waves`). Anchored
+> ids (`R/anchor.R`), the matcher core (`match_to_profiles`, `R/incremental.R`),
+> and the full pipeline (`link_incremental`, `R/incremental.R`) are done and
+> tested (`tests/testthat/test-anchor.R`, `test-incremental.R`). Remaining:
+> threshold tuning (OQ #3) and cross-org refresh (§7 / OQ #4).
+
 ## 4. The `link_incremental()` pipeline (unified single/multi-year)
 
 The wave may span one year or many. Rather than special-casing, **link the wave
@@ -170,6 +176,12 @@ follow it. Splits are review-only, not automatic.
   `R/incremental.R`)** with `same_org_candidate_pairs()` blocker; returns
   `matched` / `unmatched` / `review` (ambiguous + invariant-collision) / `report`.
 - `link_incremental(existing, new, ...)` — the full pipeline (steps 1–6).
+  **DONE (Phase 3, `R/incremental.R`)**: profiles existing → links wave internally
+  → matches → stamps `new_stamped` with inherited/fresh anchored ids; drops exact
+  `(OBJECTID,TABLE_ID)` re-loads with a warning; returns
+  `new_stamped`/`review`/`unmatched`/`wave_id_map`/`report`. Backfill-freeze is
+  delivered here (matched wave-person inherits the existing anchor). No automatic
+  merges — ambiguous second-matches go to `review`, never renamed.
 - `remint_anchored(linked)` — one-time migration: add `EMP_ANCHOR` and re-mint
   `EMP_ID` on an old membership-hash panel; emits the old→new crosswalk.
 

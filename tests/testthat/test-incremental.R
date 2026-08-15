@@ -89,3 +89,94 @@ test_that("overlapping wave/existing EMP_IDs are rejected", {
   ex <- profiles_of(rec_k("100", 2019, "JOHN", "SMITH", "", "M", "CEO", "OE1", "T1"))
   expect_error(match_to_profiles(ex, ex), "overlap")
 })
+
+## ---- link_incremental(): end-to-end wave integration -----------------------
+
+test_that("link_incremental stamps returning people with existing ids and new ones fresh", {
+  existing <- link_panel(rbind(
+    rec_k("100", 2019, "JOHN", "SMITH", "SR", "M", "CEO", "OE1", "T1"),
+    rec_k("100", 2020, "JOHN", "SMITH", "SR", "M", "CEO", "OE2", "T1"),
+    rec_k("100", 2019, "ANN",  "JONES", "",   "F", "SECRETARY", "OE3", "T2")
+  ))
+  sr_id <- unique(existing$EMP_ID[existing$suffix == "SR"])
+
+  wave <- rbind(
+    rec_k("100", 2021, "JOHN", "SMITH",  "SR", "M", "CEO", "OW1", "T1"),        # returning
+    rec_k("100", 2021, "DIANE", "OKAFOR", "",  "F", "TREASURER", "OW2", "T2")   # new
+  )
+  res <- link_incremental(existing, wave)
+
+  expect_equal(nrow(res$new_stamped), 2L)
+  sr_row  <- res$new_stamped[res$new_stamped$last_name == "SMITH", ]
+  new_row <- res$new_stamped[res$new_stamped$last_name == "OKAFOR", ]
+  expect_identical(sr_row$EMP_ID, sr_id)                 # inherited
+  expect_false(new_row$EMP_ID %in% existing$EMP_ID)      # genuinely new id
+  expect_true(new_row$EMP_ID %in% res$unmatched)
+  expect_equal(res$report$n_rows_returning, 1L)
+  expect_equal(res$report$n_rows_first_time, 1L)
+
+  # after merge, Sr is ONE person across 2019-2021
+  merged <- rbind(existing[names(res$new_stamped)], res$new_stamped)
+  expect_equal(sort(unique(merged$taxyr[merged$EMP_ID == sr_id])), c(2019, 2020, 2021))
+})
+
+test_that("backfilling an earlier year freezes the existing anchor (does NOT re-anchor)", {
+  existing <- link_panel(rbind(
+    rec_k("100", 2019, "ANN", "JONES", "", "F", "SECRETARY", "OE1", "T1"),
+    rec_k("100", 2021, "ANN", "JONES", "", "F", "SECRETARY", "OE2", "T1")
+  ))
+  ann_id0     <- unique(existing$EMP_ID)
+  ann_anchor0 <- unique(existing$EMP_ANCHOR)          # anchored on the 2019 record
+
+  # wave backfills a 2018 Ann Jones -- earlier than the current 2019 anchor.
+  wave <- rec_k("100", 2018, "ANN", "JONES", "", "F", "SECRETARY", "OW1", "T9")
+  res <- link_incremental(existing, wave)
+
+  expect_equal(nrow(res$new_stamped), 1L)
+  # The backfill inherits Ann's existing id AND her frozen 2019 anchor -- the 2018
+  # row must NOT become a new anchor (the property a batch rebuild cannot give).
+  expect_identical(res$new_stamped$EMP_ID, ann_id0)
+  expect_identical(res$new_stamped$EMP_ANCHOR, ann_anchor0)
+  expect_false(res$new_stamped$EMP_ANCHOR == person_year_id("OW1", "T9"))
+})
+
+test_that("a multi-year wave links a first-time person across its own years first", {
+  existing <- link_panel(
+    rec_k("100", 2019, "JOHN", "SMITH", "", "M", "CEO", "OE1", "T1")
+  )
+  # brand-new person appears in TWO wave years; must collapse to one person/id.
+  wave <- rbind(
+    rec_k("100", 2020, "CARLOS", "REYES", "", "M", "DIRECTOR", "OW1", "T5"),
+    rec_k("100", 2021, "CARLOS", "REYES", "", "M", "DIRECTOR", "OW2", "T5")
+  )
+  res <- link_incremental(existing, wave)
+
+  reyes <- res$new_stamped[res$new_stamped$last_name == "REYES", ]
+  expect_equal(nrow(reyes), 2L)
+  expect_equal(length(unique(reyes$EMP_ID)), 1L)          # one person, not two
+  expect_false(unique(reyes$EMP_ID) %in% existing$EMP_ID) # new
+  expect_equal(res$report$n_new_persons, 1L)
+})
+
+test_that("link_incremental requires an anchored (EMP_ANCHOR) existing panel", {
+  existing <- link_panel(rec_k("100", 2019, "JOHN", "SMITH", "", "M", "CEO", "OE1", "T1"))
+  existing$EMP_ANCHOR <- NULL
+  wave <- rec_k("100", 2020, "JOHN", "SMITH", "", "M", "CEO", "OW1", "T1")
+  expect_error(link_incremental(existing, wave), "EMP_ANCHOR")
+})
+
+test_that("exact re-loads (shared OBJECTID/TABLE_ID) are dropped with a warning", {
+  existing <- link_panel(rbind(
+    rec_k("100", 2019, "JOHN", "SMITH", "", "M", "CEO", "OE1", "T1"),
+    rec_k("100", 2020, "JOHN", "SMITH", "", "M", "CEO", "OE2", "T1")
+  ))
+  # wave carries one genuinely-new row plus a re-load of the existing (OE2,T1) row.
+  wave <- rbind(
+    rec_k("100", 2021, "JOHN", "SMITH", "", "M", "CEO", "OW1", "T1"),  # new year
+    rec_k("100", 2020, "JOHN", "SMITH", "", "M", "CEO", "OE2", "T1")   # re-load
+  )
+  expect_warning(res <- link_incremental(existing, wave), "re-load")
+  expect_equal(res$report$n_reload_rows_dropped, 1L)
+  expect_equal(nrow(res$new_stamped), 1L)                 # only the new-year row
+  expect_equal(res$new_stamped$taxyr, 2021)
+})
