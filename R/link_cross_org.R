@@ -134,8 +134,10 @@ score_candidate_pairs <- function(cand, profiles, weights = default_weights(),
 #'
 #' @param edges Accepted edges (`emp_a`, `emp_b`, `score`).
 #' @param profiles Profiles supplying each person's organization.
-#' @return A data frame `EMP_ID`, `XORG_ID` (deterministic cross-org person id;
-#'   singletons get their own), `XORG_N_ORGS`, `XORG_N_TITLES` (distinct titles),
+#' @return A data frame `EMP_ID`, `XORG_ID` (deterministic cross-org person id,
+#'   anchored to the interlock's founding member -- earliest `first_year` -- so it
+#'   survives a refresh adding members ([anchor_xorg_id()]); singletons get their
+#'   own), `XORG_N_ORGS`, `XORG_N_TITLES` (distinct titles),
 #'   `XORG_N_YEARS` (distinct calendar years), and `XORG_N_RECORDS` (total filing
 #'   rows) across the whole cross-org person. `rejected_edges` count is attached
 #'   as an attribute.
@@ -172,8 +174,14 @@ resolve_cross_org <- function(edges, profiles) {
 
   roots <- vapply(idx, find, integer(1))
   members <- split(emp, roots)
+  ## Anchor each interlock to its founding member -- the EMP_ID with the earliest
+  ## first_year (ties broken by EMP_ID) -- so the XORG_ID survives a person being
+  ## added on a later cross-org refresh (see anchor_xorg_id()).
+  first_year_by <- stats::setNames(suppressWarnings(as.integer(profiles$first_year)), emp)
   xid <- vapply(members, function(m) {
-    paste0("XORG-", toupper(substr(rlang::hash(paste(sort(m), collapse = "|")), 1, 12)))
+    fy <- first_year_by[m]
+    anchor <- m[order(fy, m, na.last = TRUE)][1]
+    anchor_xorg_id(anchor)
   }, character(1))
   norg <- vapply(members, function(m) length(unique(org1[match(m, emp)])), integer(1))
   ## Per-cluster rollups over the member EMP_IDs: distinct titles and distinct

@@ -96,11 +96,11 @@ seen* — it picks the deterministic-earliest of whatever cluster it sees. So:
 > `link_panel` and `link_incremental` share one recipe. Bump a `keyspec`-style
 > version tag on the ID so pre/post-migration IDs can never silently collide.
 
-> **STATUS: Phases 1–3 implemented** (branch `feat/incremental-waves`). Anchored
-> ids (`R/anchor.R`), the matcher core (`match_to_profiles`, `R/incremental.R`),
-> and the full pipeline (`link_incremental`, `R/incremental.R`) are done and
-> tested (`tests/testthat/test-anchor.R`, `test-incremental.R`). Remaining:
-> threshold tuning (OQ #3) and cross-org refresh (§7 / OQ #4).
+> **STATUS: complete** (branch `feat/incremental-waves`). Anchored ids
+> (`R/anchor.R`, incl. anchored `XORG_ID`), the matcher core (`match_to_profiles`),
+> the full pipeline (`link_incremental`), match-threshold tuning (§8 OQ #3), and
+> cross-org refresh (`refresh_cross_org`, §7 / OQ #4) are all done and tested
+> (`test-anchor.R`, `test-incremental.R`, `test-refresh-cross-org.R`).
 
 ## 4. The `link_incremental()` pipeline (unified single/multi-year)
 
@@ -144,8 +144,13 @@ components, org, year, and — for anchoring — OBJECTID/TABLE_ID) and `new`
    - wave-person matched nothing ⇒ **mint** a fresh anchored ID from its earliest
      wave record (§3).
    Then stamp every new record via its wave-local cluster.
-7. **(Follow-on, out of scope for v1)** re-run `link_cross_org` for affected orgs
-   — new interlocks can appear.
+7. **Cross-org refresh** — **DONE** (`refresh_cross_org`, `R/refresh_cross_org.R`):
+   re-runs `link_cross_org` on the merged panel and diffs vs a prior assignment
+   (new / newly-interlocking / grown clusters). `XORG_ID` is now **anchored** to
+   each interlock's founding member (`anchor_xorg_id`, earliest `first_year`), so
+   a refresh doesn't churn cross-org ids — the same fix as Phase 1, one level up.
+   A fully-incremental cross-org matcher (score only wave-affected profiles) is a
+   later optimization.
 
 Output: `list(new_stamped, report, id_crosswalk, review)` — new rows stamped with
 EMP_ID/EMP_ANCHOR; counts (matched-to-existing / new-persons / invariant-rejected);
@@ -209,5 +214,6 @@ follow it. Splits are review-only, not automatic.
    oracle; post-greedy P/R are flat across 5–8 (greedy one-to-one carries the
    accuracy, not the cutoff), max-F1 at 7.5. Knob stays exposed. See
    `dev/NOTES-match-threshold.md`.
-4. Cross-org refresh after a wave — incremental, or a full `link_cross_org`
-   re-run on affected orgs?
+4. ~~Cross-org refresh after a wave~~ **Resolved (2026-08-15): full re-run + diff**
+   (`refresh_cross_org`), with anchored `XORG_ID` so ids don't churn. A
+   fully-incremental cross-org matcher remains a future optimization.

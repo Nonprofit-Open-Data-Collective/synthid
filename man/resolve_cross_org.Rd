@@ -12,8 +12,10 @@ resolve_cross_org(edges, profiles)
 \item{profiles}{Profiles supplying each person's organization.}
 }
 \value{
-A data frame \code{EMP_ID}, \code{XORG_ID} (deterministic cross-org person id;
-singletons get their own), \code{XORG_N_ORGS}, \code{XORG_N_TITLES} (distinct titles),
+A data frame \code{EMP_ID}, \code{XORG_ID} (deterministic cross-org person id,
+anchored to the interlock's founding member -- earliest \code{first_year} -- so it
+survives a refresh adding members (\code{\link[=anchor_xorg_id]{anchor_xorg_id()}}); singletons get their
+own), \code{XORG_N_ORGS}, \code{XORG_N_TITLES} (distinct titles),
 \code{XORG_N_YEARS} (distinct calendar years), and \code{XORG_N_RECORDS} (total filing
 rows) across the whole cross-org person. \code{rejected_edges} count is attached
 as an attribute.

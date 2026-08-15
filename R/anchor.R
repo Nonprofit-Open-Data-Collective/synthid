@@ -72,6 +72,26 @@ anchor_emp_id <- function(anchor_key, keyspec = "v1") {
   create_emp_ids(paste0("ANCHOR|", keyspec, "|", as.character(anchor_key)))
 }
 
+#' Mint an anchored cross-org XORG_ID from a founding member's EMP_ID
+#'
+#' The cross-org analogue of [anchor_emp_id()]: hashes the anchor member's
+#' (already-stable) `EMP_ID` into an `XORG-...` interlock id. Anchoring the id to
+#' one founding member -- rather than to the whole member set -- means adding a
+#' person to an interlock (e.g. on a cross-org refresh after a new wave) does not
+#' change the cluster's `XORG_ID`, the same stability [anchor_emp_id()] gives at
+#' the person level. A scheme tag keeps these off the legacy hash-of-membership
+#' `XORG_ID` keyspace.
+#'
+#' @param anchor_emp_id Character vector of anchor `EMP_ID`s (one per cluster).
+#' @param keyspec Version tag baked into the hashed string.
+#' @return A character vector of `XORG-...` ids.
+#' @seealso [anchor_emp_id()], [resolve_cross_org()]
+#' @export
+anchor_xorg_id <- function(anchor_emp_id, keyspec = "v1") {
+  key <- paste0("XANCHOR|", keyspec, "|", as.character(anchor_emp_id))
+  paste0("XORG-", toupper(substr(purrr::map_chr(key, rlang::hash), 1, 12)))
+}
+
 #' Re-mint a linked panel's EMP_IDs under the anchored scheme
 #'
 #' One-time migration for a panel linked under the legacy hash-of-membership id
