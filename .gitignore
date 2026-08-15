@@ -26,6 +26,8 @@ dev/*.out
 dev/*.png
 # generated eval/review exports
 dev/*.csv
+# generated demo/analysis output subdirectories (reproducible from dev scripts)
+dev/careers_demo/
 
 # --- Pipeline outputs (dev/02_build_duckdb.R, dev/03_run_batched.R) ---
 /data/preproc/
