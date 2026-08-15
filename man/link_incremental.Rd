@@ -27,7 +27,8 @@ no ids yet.}
 (\code{method = "weighted"}).}
 
 \item{match_threshold}{Threshold for the wave<->existing match
-(\code{\link[=match_to_profiles]{match_to_profiles()}}); wants its own tuning (profile-vs-profile scale).}
+(\code{\link[=match_to_profiles]{match_to_profiles()}}); default \code{7}, tuned (see that function and
+\verb{dev/NOTES-match-threshold.md}).}
 
 \item{prob_threshold}{Posterior threshold for the wave-internal link when
 \code{method = "em"}.}

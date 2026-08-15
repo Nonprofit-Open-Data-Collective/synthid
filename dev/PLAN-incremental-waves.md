@@ -204,7 +204,10 @@ follow it. Splits are review-only, not automatic.
 2. Should `link_incremental` return the merged full panel, or only the stamped
    new rows (leaving the append to the caller)? Lean: stamped new rows +
    crosswalk; caller `rbind`s.
-3. Re-tune `threshold` for the profile-vs-profile score, or inherit the within-org
-   default (7)? Needs a labeled wave slice, like `dev/tune_threshold.R`.
+3. ~~Re-tune `threshold`~~ **Resolved (2026-08-15): keep 7, confirmed.**
+   `dev/tune_match_threshold.R` holds out 2021 as a wave against a full-panel
+   oracle; post-greedy P/R are flat across 5–8 (greedy one-to-one carries the
+   accuracy, not the cutoff), max-F1 at 7.5. Knob stays exposed. See
+   `dev/NOTES-match-threshold.md`.
 4. Cross-org refresh after a wave — incremental, or a full `link_cross_org`
    re-run on affected orgs?

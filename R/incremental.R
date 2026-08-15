@@ -87,7 +87,10 @@ same_org_candidate_pairs <- function(existing, wave, max_block_size = 5000L) {
 #'   inherit it.
 #' @param weights Base match weights; see [default_weights()].
 #' @param threshold Minimum score to accept a wave<->existing match (default `7`,
-#'   the within-org default; **profile-vs-profile scores want their own tuning**).
+#'   tuned on the 2019-2021 panel: post-greedy precision/recall are flat across
+#'   5-8, so the greedy one-to-one -- not the cutoff -- carries the accuracy;
+#'   see `dev/NOTES-match-threshold.md`. Raise toward 12 for near-1.0 precision at
+#'   a steep recall cost; lower toward 5 to admit more OCR/nickname variants).
 #' @param surname_weight Optional precomputed surname-rarity vector; the population
 #'   weight over `rbind(existing, wave)` if `NULL`.
 #' @param max_block_size Oversize-bucket guard for [same_org_candidate_pairs()].
@@ -235,7 +238,8 @@ match_to_profiles <- function(wave, existing, weights = default_weights(),
 #' @param link_threshold Threshold for the wave-internal [link_panel()]
 #'   (`method = "weighted"`).
 #' @param match_threshold Threshold for the wave<->existing match
-#'   ([match_to_profiles()]); wants its own tuning (profile-vs-profile scale).
+#'   ([match_to_profiles()]); default `7`, tuned (see that function and
+#'   `dev/NOTES-match-threshold.md`).
 #' @param prob_threshold Posterior threshold for the wave-internal link when
 #'   `method = "em"`.
 #' @param surname_weight Optional precomputed surname-rarity vector for the match

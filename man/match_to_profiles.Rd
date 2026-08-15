@@ -19,7 +19,10 @@ inherit it.}
 \item{weights}{Base match weights; see \code{\link[=default_weights]{default_weights()}}.}
 
 \item{threshold}{Minimum score to accept a wave<->existing match (default \code{7},
-the within-org default; \strong{profile-vs-profile scores want their own tuning}).}
+tuned on the 2019-2021 panel: post-greedy precision/recall are flat across
+5-8, so the greedy one-to-one -- not the cutoff -- carries the accuracy;
+see \verb{dev/NOTES-match-threshold.md}. Raise toward 12 for near-1.0 precision at
+a steep recall cost; lower toward 5 to admit more OCR/nickname variants).}
 
 \item{surname_weight}{Optional precomputed surname-rarity vector; the population
 weight over \code{rbind(existing, wave)} if \code{NULL}.}
