@@ -2,19 +2,27 @@
 % Please edit documentation in R/cluster.R
 \name{assign_emp_ids}
 \alias{assign_emp_ids}
-\title{Assign a stable EMP_ID to each cluster}
+\title{Assign a stable, anchored EMP_ID to each cluster}
 \usage{
-assign_emp_ids(assignment)
+assign_emp_ids(assignment, records)
 }
 \arguments{
 \item{assignment}{Data frame with \code{.row_uid} and \code{.emp_cluster}.}
+
+\item{records}{Per-record anchor material keyed by \code{.row_uid}: a data frame
+with \code{.row_uid}, \code{.year}, and (optionally) \code{.object_id}, \code{.table_id}.}
 }
 \value{
-\code{assignment} with an added \code{EMP_ID} column.
+\code{assignment} with added \code{EMP_ID} and \code{EMP_ANCHOR} columns.
 }
 \description{
-The identifier is a deterministic hash of the sorted member record strings, so
-it depends only on cluster membership (not on row order or run) and is stable
-as long as the members are.
+Each cluster's identifier is minted from its \emph{anchor} -- the deterministic
+first-seen record (\code{\link[=emp_anchor_key]{emp_anchor_key()}}) -- rather than from the full membership,
+so the id depends only on the person's earliest record and stays fixed as
+later (or backfilled earlier) records join the cluster. The pick is
+independent of row order and run, so ids are reproducible.
+}
+\seealso{
+\code{\link[=emp_anchor_key]{emp_anchor_key()}}, \code{\link[=anchor_emp_id]{anchor_emp_id()}}
 }
 \keyword{internal}

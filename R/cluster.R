@@ -73,23 +73,37 @@ resolve_clusters <- function(work, edges) {
   list(assignment = assignment, rejected_edges = rejected)
 }
 
-#' Assign a stable EMP_ID to each cluster
+#' Assign a stable, anchored EMP_ID to each cluster
 #'
-#' The identifier is a deterministic hash of the sorted member record strings, so
-#' it depends only on cluster membership (not on row order or run) and is stable
-#' as long as the members are.
+#' Each cluster's identifier is minted from its *anchor* -- the deterministic
+#' first-seen record ([emp_anchor_key()]) -- rather than from the full membership,
+#' so the id depends only on the person's earliest record and stays fixed as
+#' later (or backfilled earlier) records join the cluster. The pick is
+#' independent of row order and run, so ids are reproducible.
 #'
 #' @param assignment Data frame with `.row_uid` and `.emp_cluster`.
-#' @return `assignment` with an added `EMP_ID` column.
+#' @param records Per-record anchor material keyed by `.row_uid`: a data frame
+#'   with `.row_uid`, `.year`, and (optionally) `.object_id`, `.table_id`.
+#' @return `assignment` with added `EMP_ID` and `EMP_ANCHOR` columns.
+#' @seealso [emp_anchor_key()], [anchor_emp_id()]
 #' @keywords internal
-assign_emp_ids <- function(assignment) {
-  split_uids <- split(assignment$.row_uid, assignment$.emp_cluster)
-  canon <- vapply(split_uids, function(u) paste(sort(u), collapse = "||"),
-                  character(1))
-  emp <- create_emp_ids(canon)
+assign_emp_ids <- function(assignment, records) {
+  m <- match(assignment$.row_uid, records$.row_uid)
+  yr  <- records$.year[m]
+  pick <- function(col) if (col %in% names(records)) records[[col]][m] else NULL
+  oid <- pick(".object_id"); tid <- pick(".table_id")
+  sub <- function(v, i) if (is.null(v)) NULL else v[i]
+
+  split_ix <- split(seq_len(nrow(assignment)), assignment$.emp_cluster)
+  anchors <- vapply(split_ix, function(i)
+    emp_anchor_key(year = yr[i], object_id = sub(oid, i), table_id = sub(tid, i),
+                   row_uid = assignment$.row_uid[i]),
+    character(1))
+  emp <- anchor_emp_id(anchors)
   map <- data.frame(
-    .emp_cluster = as.integer(names(split_uids)),
+    .emp_cluster = as.integer(names(split_ix)),
     EMP_ID = emp,
+    EMP_ANCHOR = unname(anchors),
     stringsAsFactors = FALSE
   )
   merge(assignment, map, by = ".emp_cluster", sort = FALSE)

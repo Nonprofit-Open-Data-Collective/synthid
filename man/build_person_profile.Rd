@@ -40,7 +40,9 @@ A data frame, one row per \code{EMP_ID}, with scalar summary columns and
 list-columns for the variant sets:
 \describe{
 \item{\code{EMP_ID}, \code{n_records}, \code{n_orgs}, \code{n_years}, \code{first_year},
-\code{last_year}}{Cluster size and span.}
+\code{last_year}}{Cluster size and span. \code{EMP_ANCHOR} (the person's anchor
+key) is carried through too when the input panel has it, so an
+incremental match can inherit it (\code{\link[=match_to_profiles]{match_to_profiles()}}).}
 \item{\code{last_name}, \code{last_name_variants}, \code{last_name_keys}}{Modal surname;
 the distinct surnames observed; their phonetic (Soundex) blocking keys.}
 \item{\code{first_name}, \code{first_name_variants}, \code{first_name_roots},

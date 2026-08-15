@@ -12,6 +12,8 @@ synthid_cols <- function() {
     org_name = "org.name",
     year     = "taxyr",
     name     = "name",
+    object_id = "OBJECTID",
+    table_id  = "TABLE_ID",
     features = c("salutation", "first_name", "middle_name",
                  "last_name", "suffix", "gender", "title.standard")
   )
@@ -69,6 +71,12 @@ prepare_panel <- function(df, cols = synthid_cols()) {
     title = if ("title.standard" %in% names(df)) "title.standard" else cols$name
   )
   work$.row_uid <- id_string
+  ## Native filing keys for anchored id minting (assign_emp_ids); NA when the
+  ## source panel does not carry them -- the anchor then falls back to .row_uid.
+  work$.object_id <- if (!is.null(cols$object_id) && cols$object_id %in% names(df))
+    as.character(df[[cols$object_id]]) else NA_character_
+  work$.table_id  <- if (!is.null(cols$table_id) && cols$table_id %in% names(df))
+    as.character(df[[cols$table_id]]) else NA_character_
   work$.surname_w <- surname_weight(
     data.frame(ein = work$.org, name = work$.name,
                last_name = if ("last_name" %in% names(work)) work$last_name else work$.name,

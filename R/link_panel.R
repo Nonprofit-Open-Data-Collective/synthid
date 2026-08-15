@@ -21,8 +21,11 @@
 #' @param prob_threshold Minimum posterior match probability to link two records
 #'   when `method = "em"` (default `0.5`).
 #' @param verbose Print progress.
-#' @return `df` with added columns: `EMP_ID` (stable person id), `EMP_N_RECORDS`,
-#'   `EMP_N_YEARS`, and -- for `method = "em"` -- `EMP_LINK_CONF` (the weakest
+#' @return `df` with added columns: `EMP_ID` (stable person id, minted from the
+#'   person's anchor record so it survives new waves and backfills; see
+#'   [emp_anchor_key()]), `EMP_ANCHOR` (the anchor key behind that id),
+#'   `EMP_N_RECORDS`, `EMP_N_YEARS`, and -- for `method = "em"` -- `EMP_LINK_CONF`
+#'   (the weakest
 #'   posterior probability among the links holding the person's cluster together;
 #'   `NA` for single-record persons), a ready-made confidence input for a
 #'   downstream panel model. Diagnostics are attached as the `"synthid"` attribute
@@ -66,7 +69,10 @@ link_panel <- function(df, cols = synthid_cols(),
 
   if (verbose) message("Resolving clusters...")
   cl <- resolve_clusters(work, edges)
-  emp <- assign_emp_ids(cl$assignment)
+  emp <- assign_emp_ids(
+    cl$assignment,
+    work[c(".row_uid", ".year", ".object_id", ".table_id")]
+  )
 
   ## Align cluster output back to the original row order.
   emp <- emp[match(work$.row_uid, emp$.row_uid), , drop = FALSE]
@@ -76,6 +82,7 @@ link_panel <- function(df, cols = synthid_cols(),
 
   out <- df
   out$EMP_ID <- emp$EMP_ID
+  out$EMP_ANCHOR <- emp$EMP_ANCHOR
   out$EMP_N_RECORDS <- as.integer(size)
   out$EMP_N_YEARS <- as.integer(nyr)
 

@@ -34,7 +34,9 @@
 #'   list-columns for the variant sets:
 #'   \describe{
 #'     \item{`EMP_ID`, `n_records`, `n_orgs`, `n_years`, `first_year`,
-#'       `last_year`}{Cluster size and span.}
+#'       `last_year`}{Cluster size and span. `EMP_ANCHOR` (the person's anchor
+#'       key) is carried through too when the input panel has it, so an
+#'       incremental match can inherit it ([match_to_profiles()]).}
 #'     \item{`last_name`, `last_name_variants`, `last_name_keys`}{Modal surname;
 #'       the distinct surnames observed; their phonetic (Soundex) blocking keys.}
 #'     \item{`first_name`, `first_name_variants`, `first_name_roots`,
@@ -130,6 +132,14 @@ build_person_profile <- function(df, cols = synthid_cols(),
     sort(unique(unlist(lapply(v, first_name_roots), use.names = FALSE)))
   }
 
+  ## Carry the anchor key through when present (per-cluster constant), so a
+  ## matched incremental wave-person can inherit the existing person's anchor.
+  anchor_of <- if ("EMP_ANCHOR" %in% names(df)) {
+    a <- as.character(df$EMP_ANCHOR)
+    vapply(idx, function(r) { v <- a[r]; v <- v[!is.na(v)]; if (length(v)) v[1] else NA_character_ },
+           character(1))
+  } else NULL
+
   n <- length(idx)
   emp <- names(idx)
   scal <- data.frame(
@@ -186,9 +196,11 @@ build_person_profile <- function(df, cols = synthid_cols(),
   scal$years               <- yrs
   if (!is.null(st)) scal$states <- sts
   if (!is.null(nt)) scal$ntee   <- nts
+  if (!is.null(anchor_of)) scal$EMP_ANCHOR <- unname(anchor_of)
 
   ## Column order: scalars, then the variant list-columns.
-  ord <- c("EMP_ID", "n_records", "n_orgs", "n_years", "first_year", "last_year",
+  ord <- c("EMP_ID", if (!is.null(anchor_of)) "EMP_ANCHOR",
+           "n_records", "n_orgs", "n_years", "first_year", "last_year",
            "last_name", "last_name_variants", "last_name_keys",
            "first_name", "first_name_variants", "first_name_roots", "first_initial",
            "middle_initials", "suffixes", "gender", "name_variants",

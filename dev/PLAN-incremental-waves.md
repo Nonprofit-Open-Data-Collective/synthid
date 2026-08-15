@@ -80,42 +80,77 @@ This makes IDs stable under **both** append and backfill. The cost the decision
 accepts: a **one-time re-mint** of existing IDs when switching schemes (old
 membership-hash IDs → new anchored IDs), plus carrying one extra column.
 
+**Batch vs. incremental boundary (found in Phase 1 implementation).** A
+from-scratch `link_panel()` rebuild has no memory of when a person was *first
+seen* — it picks the deterministic-earliest of whatever cluster it sees. So:
+- **Forward waves are stable even under a full batch re-run** — the earliest
+  record is unchanged, so the anchor (and id) don't move. This is a free property
+  of deterministic-earliest anchoring and covers the common case.
+- **Backfill (an earlier record) re-anchors under a batch re-run** — correctly, by
+  the batch rule. Freezing the anchor across a backfill is therefore a property of
+  the **incremental path** (`link_incremental`, Phase 3), which carries the prior
+  `EMP_ANCHOR` forward and only mints for genuinely new persons. Phase 1
+  (`link_panel`) stays pure batch; no carried-anchor logic.
+
 > Change `assign_emp_ids()` so the *initial build* uses anchored IDs too, so
 > `link_panel` and `link_incremental` share one recipe. Bump a `keyspec`-style
 > version tag on the ID so pre/post-migration IDs can never silently collide.
 
-## 4. The `link_incremental()` pipeline
+> **STATUS: complete** (branch `feat/incremental-waves`). Anchored ids
+> (`R/anchor.R`, incl. anchored `XORG_ID`), the matcher core (`match_to_profiles`),
+> the full pipeline (`link_incremental`), match-threshold tuning (§8 OQ #3), and
+> cross-org refresh (`refresh_cross_org`, §7 / OQ #4) are all done and tested
+> (`test-anchor.R`, `test-incremental.R`, `test-refresh-cross-org.R`).
+
+## 4. The `link_incremental()` pipeline (unified single/multi-year)
+
+The wave may span one year or many. Rather than special-casing, **link the wave
+internally first, then match wave-persons to existing persons** — single-year is
+just the case where every wave-local person has ≤1 record per org-year. This
+turns the whole thing into profile-vs-profile matching, which the cross-org stage
+already does.
 
 Inputs: `existing` (a linked panel carrying `EMP_ID`, `EMP_ANCHOR`, name
-components, org, year) and `new` (parsed wave, same schema, no IDs yet).
+components, org, year, and — for anchoring — OBJECTID/TABLE_ID) and `new`
+(parsed wave, same schema, no IDs yet).
 
 1. **Profile the existing panel** → `build_person_profile(existing)` (extended to
-   pass `EMP_ANCHOR` through). One profile per existing person: variant sets,
-   orgs, years, anchor. Profiles are cacheable between waves (parquet/rds) so a
-   wave need not re-profile all history — dovetails with the DuckDB batching
-   workflow.
-2. **Block new records → existing profiles, within org.** Candidate = (new row
-   `r`, profile `p`) where `p.orgs ∋ r.org`. Optionally add a surname-key bucket
-   for recall/speed, mirroring the cross-org hash-block (`person_blocking_keys` /
+   pass `EMP_ANCHOR` through). One profile per existing person. Cacheable between
+   waves (parquet/rds), dovetailing with the DuckDB batching workflow.
+2. **Link the wave internally** → `link_panel(new)` gives the wave its own
+   provisional within-org clusters. This is what absorbs the multi-year case (a
+   first-time person appearing in 2022+2023+2024 becomes ONE wave-person).
+   `build_person_profile(wave_linked)` → one **wave-profile** per wave-person.
+3. **Block wave-profiles → existing profiles, same org** (optionally + surname
+   key), mirroring the cross-org hash-block (`person_blocking_keys` /
    `candidate_pairs`).
-3. **Invariant guard.** A new (org, year) row may only match a profile that does
-   **not already hold a record for that org-year** — same "one record per
-   org-year = one person" rule enforced in `resolve_clusters` / `resolve_cross_org`.
-4. **Score** each (new row, profile) candidate by reusing the cross-org
-   set-scorer: `.best_set_sim()` over the profile's variant sets with
-   `compare_last_names` / `compare_first_names`, `score_pairs()`. Surname
-   frequency uses the **within-org** `surname_weight()` (family-board logic), not
-   the population weight — a wave attaches within an org.
-5. **Assign** each new row to its best profile above `threshold`, **greedy
-   one-to-one within (org, year)** via `greedy_one_to_one()`: a person absorbs ≤1
-   new row per org-year; a new row attaches to ≤1 person. Matched rows **inherit**
-   that person's `EMP_ID` / `EMP_ANCHOR`.
-6. **Residual new rows** (matched nothing): run the *initial-build* linker
-   (`link_panel`) on the residual subset alone to cluster first-time persons who
-   appear in ≥2 new rows (new person across two orgs, or a multi-year wave), then
-   mint fresh anchored IDs.
-7. **(Follow-on)** re-run `link_cross_org` for affected persons — new interlocks
-   can appear. Out of scope for v1; note it.
+4. **Score** each (wave-profile, existing-profile) candidate with the cross-org
+   set-scorer: `.best_set_sim()` over the variant sets with `compare_last_names` /
+   `compare_first_names`, `score_pairs()`. **Surname frequency: population rarity**
+   (`population_surname_weight()` over the merged profile set) — *revised from the
+   original within-org note during Phase 2.* At the match stage both people are
+   already distinct identities (wave-internal linkage did the family-board
+   separation), so the surname weight only calibrates how surprising the agreement
+   is *across the wave boundary* (`SMITH` weak, `GANTSOUDES` strong) — exactly the
+   cross-org question. Overridable via `surname_weight=`.
+5. **Accept** edges ≥ `threshold`, **greedy one-to-one** (`greedy_one_to_one()`),
+   under the **one-record-per-(org,year) invariant across the merged timeline**:
+   a wave-person may merge into an existing person only if their `(org, year)`
+   footprints are **disjoint** (same guard as `resolve_clusters`, generalized from
+   year to (org,year) keys). A collision ⇒ they are different people ⇒ reject.
+6. **Resolve IDs:**
+   - wave-person matched to an existing person ⇒ **inherit** that `EMP_ID` /
+     `EMP_ANCHOR`;
+   - wave-person matched nothing ⇒ **mint** a fresh anchored ID from its earliest
+     wave record (§3).
+   Then stamp every new record via its wave-local cluster.
+7. **Cross-org refresh** — **DONE** (`refresh_cross_org`, `R/refresh_cross_org.R`):
+   re-runs `link_cross_org` on the merged panel and diffs vs a prior assignment
+   (new / newly-interlocking / grown clusters). `XORG_ID` is now **anchored** to
+   each interlock's founding member (`anchor_xorg_id`, earliest `first_year`), so
+   a refresh doesn't churn cross-org ids — the same fix as Phase 1, one level up.
+   A fully-incremental cross-org matcher (score only wave-affected profiles) is a
+   later optimization.
 
 Output: `list(new_stamped, report, id_crosswalk, review)` — new rows stamped with
 EMP_ID/EMP_ANCHOR; counts (matched-to-existing / new-persons / invariant-rejected);
@@ -141,9 +176,17 @@ follow it. Splits are review-only, not automatic.
 
 - `emp_anchor_key(df, cols)` — deterministic-earliest anchor per cluster (§3.2).
 - `anchor_emp_id(anchor_key)` — hash → `EMP_ID` (with version tag).
-- `match_to_profiles(new, profiles, ...)` — the block+score+assign core (steps
-  2–5); reused by wave-matching and callable standalone.
+- `match_to_profiles(wave, existing, ...)` — the block+score+assign core (steps
+  3–5); reused by wave-matching and callable standalone. **DONE (Phase 2,
+  `R/incremental.R`)** with `same_org_candidate_pairs()` blocker; returns
+  `matched` / `unmatched` / `review` (ambiguous + invariant-collision) / `report`.
 - `link_incremental(existing, new, ...)` — the full pipeline (steps 1–6).
+  **DONE (Phase 3, `R/incremental.R`)**: profiles existing → links wave internally
+  → matches → stamps `new_stamped` with inherited/fresh anchored ids; drops exact
+  `(OBJECTID,TABLE_ID)` re-loads with a warning; returns
+  `new_stamped`/`review`/`unmatched`/`wave_id_map`/`report`. Backfill-freeze is
+  delivered here (matched wave-person inherits the existing anchor). No automatic
+  merges — ambiguous second-matches go to `review`, never renamed.
 - `remint_anchored(linked)` — one-time migration: add `EMP_ANCHOR` and re-mint
   `EMP_ID` on an old membership-hash panel; emits the old→new crosswalk.
 
@@ -160,12 +203,17 @@ follow it. Splits are review-only, not automatic.
 | Anchor key | `person_year_id` (`R/id.R:85`) |
 
 ## 8. Open questions
-1. Wave granularity — always one tax year, or allow multi-year waves? (Step 6
-   already tolerates multi-year residuals.)
+1. ~~Wave granularity~~ **Resolved (2026-08-14): support single AND multi-year.**
+   Handled by linking the wave internally first (§4 step 2), so both collapse to
+   profile-vs-profile matching.
 2. Should `link_incremental` return the merged full panel, or only the stamped
    new rows (leaving the append to the caller)? Lean: stamped new rows +
    crosswalk; caller `rbind`s.
-3. Re-tune `threshold` for the asymmetric row-vs-profile score, or inherit the
-   within-org default (7)? Needs a labeled wave slice, like `dev/tune_threshold.R`.
-4. Cross-org refresh after a wave — incremental, or a full `link_cross_org`
-   re-run on affected orgs?
+3. ~~Re-tune `threshold`~~ **Resolved (2026-08-15): keep 7, confirmed.**
+   `dev/tune_match_threshold.R` holds out 2021 as a wave against a full-panel
+   oracle; post-greedy P/R are flat across 5–8 (greedy one-to-one carries the
+   accuracy, not the cutoff), max-F1 at 7.5. Knob stays exposed. See
+   `dev/NOTES-match-threshold.md`.
+4. ~~Cross-org refresh after a wave~~ **Resolved (2026-08-15): full re-run + diff**
+   (`refresh_cross_org`), with anchored `XORG_ID` so ids don't churn. A
+   fully-incremental cross-org matcher remains a future optimization.
