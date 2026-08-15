@@ -39,8 +39,10 @@ when \code{method = "em"} (default \code{0.5}).}
 \item{verbose}{Print progress.}
 }
 \value{
-\code{df} with added columns: \code{EMP_ID} (stable person id), \code{EMP_N_RECORDS},
-\code{EMP_N_YEARS}, and -- for \code{method = "em"} -- \code{EMP_LINK_CONF} (the weakest
+\code{df} with added columns: \code{EMP_ID} (stable person id, minted from the
+person's anchor record so it survives new waves and backfills; see
+\code{\link[=emp_anchor_key]{emp_anchor_key()}}), \code{EMP_ANCHOR} (the anchor key behind that id),
+\code{EMP_N_RECORDS}, \code{EMP_N_YEARS}, and -- for \code{method = "em"} -- \code{EMP_LINK_CONF} (the weakest
 posterior probability among the links holding the person's cluster together;
 \code{NA} for single-record persons), a ready-made confidence input for a
 downstream panel model. Diagnostics are attached as the \code{"synthid"} attribute
