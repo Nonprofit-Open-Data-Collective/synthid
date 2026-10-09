@@ -35,6 +35,8 @@ whose output exists is reused where noted.
 | `04-extract.R` | Pulls every table for the sampled orgs; BMF via `panel990::bmf_retrieve()` | `devdata/{orgs,filings,persons,schedj}.parquet` |
 | `05-classify.R` | titleclassifier steps 01-09 (with the 990-EZ role model) and peopleparser names | `devdata/classified/<year>.parquet`, `devdata/people.parquet` |
 | `06-profile.R` | Coverage of each table and of the independent checks, by cohort and form | committed `profile-*.csv` |
+| `07-link.R` | `link_panel()` on one cohort, parallel over orgs balanced on records² | `linked/<cohort>.parquet`, `linked/<cohort>-run.rds` |
+| `08-score.R` | Scores a linked cohort: principal-officer recall and false merges, CEO agreement, board size vs voting members, review flags | committed `baseline-<cohort>.csv` |
 
 Committed summaries: `frame-summary.csv`, `sample-cells.csv` and `profile-*.csv`.
 

@@ -246,3 +246,80 @@ parsing the 430,707 distinct names took 9.0 min (4.1x faster).
 
 `people.parquet` is synthid's input: it is in `synthid_cols()` layout plus
 step 09's role columns.
+
+### F-007 Baseline linkage on core_dev (noted)
+
+`07-link.R` ran `link_panel()` with default settings (threshold 7, weighted)
+on core_dev. Setup: synthid `225ba86`, 20 workers, organizations balanced on
+records². `08-score.R` scored the result, and all metrics are in
+`baseline-core_dev.csv`.
+
+**Run:**
+- 626,974 records in 2,990 organizations became 132,994 persons (78.8%
+  compression).
+- 18.5 min wall time, 168 min of worker time. The largest organization
+  (4,784 records) sets the wall time.
+- 80.0% of persons appear in 2+ years; the median is 4 years.
+- No person has two records in one year.
+
+**Linkage, checked against the principal officer** (full 990s, 19,045 and
+3,048 consecutive-year pairs):
+
+| Check | Result |
+|---|---|
+| Same principal officer (same parsed first and last name) next year: same EMP_ID | **99.85%** |
+| Clearly different principal officer next year: same EMP_ID | **0.00%** |
+| The step 09 CEO is the same EMP_ID next year | 90.6% (titleclassifier F-026: 88-92%) |
+
+Within-organization linkage holds up on the people it can be checked
+against. Principal officers are stable, well-recorded executives, though, so
+this is an easy test. Board members and homonyms are where to look next (see
+the flags).
+
+**The principal officer is a noisy check on the CEO, not ground truth:**
+- It appears in Part VII on 87.5% of filings that name one.
+- Step 09 calls it CEO 44% of the time and BOARD 48% of the time.
+
+| Leadership type (step 09) | Principal officer is the CEO |
+|---|---|
+| designated | 70.7% (12,643 filings) |
+| imputed | 53.0% (4,845) |
+| board_governed | 0% by definition (1,300) |
+| no_paid | 0% by definition (7,393) |
+
+- When the principal officer is labeled BOARD, the median is 2 hours a week,
+  15% are paid and 87% tick the officer box.
+- They are mostly BOARD PRESIDENT (7,921) or BOARD TREASURER (2,346).
+- Many filers name the board chair or treasurer as principal officer even
+  when there is an executive director: 33% of these filings do have a
+  different CEO.
+- **Leads for step 09 review:** principal officers that step 09 labels BOARD
+  while titled EXECUTIVE DIRECTOR (71), ADMINISTRATOR (28), CHIEF FINANCIAL
+  OFFICER (23), CEO (10) or MANAGING DIRECTOR (10). These are probably unpaid
+  executives, which is guide rule 7 in titleclassifier F-024.
+
+**Board size vs Part VI voting members** (34,232 990 filings):
+
+| Count | Exact | Within 2 |
+|---|---|---|
+| Step 09 board seats | 53.7% | **85.8%** |
+| Part VII trustee boxes | 54.7% | 76.2% |
+
+Step 09 is closer within 2 seats, and both have a median difference of 0.
+`role.board` is set only on BOARD rows, so a paid CEO who also sits on the
+board is not counted as a seat. That is worth checking as a source of the
+remaining gap.
+
+**Review flags** (persons out of 132,994):
+
+| Flag | Persons |
+|---|---|
+| `flag_links` nickname_or_spelling | 8,208 |
+| `flag_links` surname_compound | 3,526 |
+| `flag_links` review | 2,712 |
+| `flag_links` order_swap | 1,263 |
+| `flag_anomalies` sequential_homonym_gap | 2,543 |
+| `flag_anomalies` homonym_copresent | 610 |
+| `flag_anomalies` intermittent | 404 |
+| `flag_anomalies` sequential_homonym_pay | 123 |
+| `flag_anomalies` entity_not_person | 115 |

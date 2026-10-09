@@ -1,0 +1,42 @@
+section,metric,value,n
+A,records,626974,
+A,persons,132994,
+A,compression,0.7879,
+A,persons in 2+ years,0.8002,132994
+A,persons with >1 record in one year,0,
+A,median years per multi-year person,4,
+B,990 filings naming a principal officer,0.8743,34232
+B1,principal officer found in Part VII,0.8748,29928
+B2,found principal officer is step 09 CEO,0.4395,26181
+B2,found principal officer is BOARD,0.4797,26181
+B2,found principal officer is STAFF,0.0022,26181
+B2,found principal officer is OFFICER,0.0781,26181
+B2,found principal officer is MANAGER,5e-04,26181
+B2,principal officer is CEO | org.leadership = designated,0.707,12643
+B2,principal officer is CEO | org.leadership = imputed,0.5302,4845
+B2,principal officer is CEO | org.leadership = board_governed,0,1300
+B2,principal officer is CEO | org.leadership = no_paid,0,7393
+B2,filings with a CEO whose CEO is the principal officer,0.658,17488
+B3,same principal officer next year -> same EMP_ID (recall),0.9985,19045
+B3,different principal officer next year -> same EMP_ID (false merge),0,3048
+C,seats = voting members,0.5368,34232
+C,seats within 2 of voting members,0.8582,34232
+C,seats median (count - voting members),0,34232
+C,board = voting members,0.5368,34232
+C,board within 2 of voting members,0.8582,34232
+C,board median (count - voting members),0,34232
+C,trustee_box = voting members,0.5467,34232
+C,trustee_box within 2 of voting members,0.7621,34232
+C,trustee_box median (count - voting members),0,34232
+D,CEO is the same EMP_ID next year,0.9058,22051
+E,flag_links persons: nickname_or_spelling,8208,132994
+E,flag_links persons: order_swap,1263,132994
+E,flag_links persons: parser_honorific_glue,50,132994
+E,flag_links persons: review,2712,132994
+E,flag_links persons: surname_compound,3526,132994
+E,flag_links persons: surname_credential,25,132994
+E,flag_anomalies persons: entity_not_person,115,132994
+E,flag_anomalies persons: homonym_copresent,610,132994
+E,flag_anomalies persons: intermittent,404,132994
+E,flag_anomalies persons: sequential_homonym_gap,2543,132994
+E,flag_anomalies persons: sequential_homonym_pay,123,132994

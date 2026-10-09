@@ -1,0 +1,35 @@
+section,metric,value,n
+A,records,29405,
+A,persons,5952,
+A,compression,0.7976,
+A,persons in 2+ years,0.8275,5952
+A,persons with >1 record in one year,0,
+A,median years per multi-year person,5,
+B,990 filings naming a principal officer,0.8604,1218
+B1,principal officer found in Part VII,0.8989,1048
+B2,found principal officer is step 09 CEO,0.4873,942
+B2,found principal officer is BOARD,0.4257,942
+B2,found principal officer is OFFICER,0.086,942
+B2,found principal officer is STAFF,0.0011,942
+B2,filings with a CEO whose CEO is the principal officer,0.6567,699
+B3,same principal officer next year -> same EMP_ID (recall),1,683
+B3,different principal officer next year -> same EMP_ID (false merge),0,105
+C,seats = voting members,0.5558,1218
+C,seats within 2 of voting members,0.8522,1218
+C,seats median (count - voting members),0,1218
+C,board = voting members,0.5558,1218
+C,board within 2 of voting members,0.8522,1218
+C,board median (count - voting members),0,1218
+C,trustee_box = voting members,0.5928,1218
+C,trustee_box within 2 of voting members,0.8153,1218
+C,trustee_box median (count - voting members),0,1218
+D,CEO is the same EMP_ID next year,0.916,845
+E,flag_links persons: nickname_or_spelling,397,5952
+E,flag_links persons: order_swap,61,5952
+E,flag_links persons: review,109,5952
+E,flag_links persons: surname_compound,149,5952
+E,flag_anomalies persons: entity_not_person,2,5952
+E,flag_anomalies persons: homonym_copresent,16,5952
+E,flag_anomalies persons: intermittent,9,5952
+E,flag_anomalies persons: sequential_homonym_gap,98,5952
+E,flag_anomalies persons: sequential_homonym_pay,3,5952
