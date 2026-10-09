@@ -1,0 +1,9 @@
+panel_type,panel_spell,orgs,with_partvii_all_years,med_years
+entrant,seamless,360232,360232,6
+entrant,segmented,73161,73161,9
+exit,seamless,44680,44680,5
+exit,segmented,12469,12469,7
+persistent,seamless,88546,88546,15
+persistent,segmented,39481,39481,13
+transient,seamless,149557,149557,2
+transient,segmented,22893,22893,5

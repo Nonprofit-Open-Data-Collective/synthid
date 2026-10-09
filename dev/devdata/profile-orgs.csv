@@ -1,0 +1,7 @@
+cohort,orgs,bmf_matched,med_years,med_gap,first_initial,last_final,in_test_panels_1k
+core_dev,2990,0.994,15,0,0.011,0.009,185
+core_holdout,2982,0.995,15,0,0.012,0.01,174
+entrant,1667,0.966,5,0,0.372,0.009,0
+exit,1599,0.99,5,0,0.023,0.416,0
+gapped,1523,0.988,9,1,0.098,0.059,0
+transient,1594,0.907,3,0,0.422,0.434,0
