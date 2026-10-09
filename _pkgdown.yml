@@ -125,3 +125,17 @@ reference:
   - parse_fail_tokens
   - honorific_tokens
   - credential_tokens
+
+- title: Anomaly scan
+  desc: >
+    The other half of link review. flag_links() only flags clusters whose names
+    disagree, so it cannot see a cluster that wrongly fuses two people sharing a
+    name. flag_anomalies() targets that false-merge case -- co-present homonyms,
+    returns after a long absence, pay-level breaks across a gap -- plus the
+    records that should not be person nodes at all (institutions and
+    placeholders filed in the person-name field).
+  contents:
+  - flag_anomalies
+  - anomaly_review_queue
+  - corporate_tokens
+  - placeholder_names
