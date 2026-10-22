@@ -8,14 +8,17 @@
 #     build-info-{classify,people}.csv
 #     people/people-<year>.parquet          linker input, one row per person per filing
 #     classified/classified-<year>.parquet  every person-title row, all columns
+#     people-by-ein/bucket=NN/part-0.parquet  linker columns, all years of an org (04-bucket.R)
 #
 # Read it back with arrow:  open_dataset("s3://nccs-efile/dev/synthid/partvii-v3_1/people")
 #
-#   Rscript dev/partvii-panel/03-upload.R
+#   Rscript dev/partvii-panel/03-upload.R   (re-run after 04-bucket.R; sync sends only new files)
 
 source("dev/partvii-panel/_panel.R")
 files <- c(ppl_file(YEARS), cls_file(YEARS))
 stopifnot(all(file.exists(files)))
+# the EIN-bucket layout (04-bucket.R), when it has been built
+files <- c(files, sort(Sys.glob(file.path(pv_root, "people-by-ein", "bucket=*", "*.parquet"))))
 
 man <- rbindlist(lapply(files, function(f) data.table(
   file = sub(paste0(pv_root, "/"), "", f, fixed = TRUE),

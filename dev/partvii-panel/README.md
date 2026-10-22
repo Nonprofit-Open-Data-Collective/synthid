@@ -17,6 +17,7 @@ development cohorts in `dev/devdata/`.
 | 1 | `01-classify.R` | titleclassifier steps 01-09 on each tax year | `classified/classified-<year>.parquet` |
 | 2 | `02-people.R` | one row per person per filing (the `role.primary` title row), names parsed once per distinct string | `people/people-<year>.parquet`, committed `panel-summary.csv` |
 | 3 | `03-upload.R` | manifest (rows, bytes, md5) and `aws s3 sync` | the S3 prefix above |
+| 4 | `04-bucket.R` | the people rows re-laid by EIN bucket for linkage (then re-run step 3) | `people-by-ein/bucket=NN/part-0.parquet`, committed `bucket-summary.csv` |
 
 Rules carried over from the development dataset:
 - **Filing unit:** the latest submission per EIN x tax year (`02-frame.R`), so
@@ -78,11 +79,53 @@ matched its GitHub head:
 Not in this build: the 650 crosswalk proposals in `dev/CROSSWALK-UPDATES.md`
 (not yet reviewed or applied to titleclassifier).
 
+## Layout
+
+| Folder | One file per | Rows | Columns | Use |
+|---|---|---|---|---|
+| `classified/` | tax year | 60.6M person-title rows | all 153 (source + titleclassifier) | title and role analysis; joins on `OBJECTID` + `TABLE_ID` |
+| `people/` | tax year | 58.4M people | 34 | one year at a time |
+| `people-by-ein/` | EIN bucket (`bucket=00`-`99`) | 58.4M people, 539k-715k a bucket | 24 linker columns | **linkage**: each bucket holds every year of ~8,000 orgs, so it is a self-contained panel for one worker |
+
+`people-by-ein/`:
+- **Bucket** = the last two digits of the EIN. They split organizations
+  evenly (7,603-8,591 orgs a bucket). The leading two digits are IRS prefix
+  codes and do not (85 groups, 0.0004-4.3% of orgs).
+- **Sorted** by `ein`, `taxyr`, `OBJECTID`, `TABLE_ID`, in row groups of
+  100,000 rows, so a filter on `ein` reads only the row groups that hold it.
+- **Columns:** `PERSON_YEAR_ID`, `OBJECTID`, `TABLE_ID`, `ein`, `taxyr`,
+  `formtype`, `org.name`, the name and parsed name parts (`name`, `name.raw`,
+  `salutation`, `first_name`, `middle_name`, `last_name`, `suffix`, `gender`),
+  `title.standard`, `title.raw`, `tot.hours`, `tot.comp`, `trustee.x`,
+  `officer.x`, `role.final`, `role.board`, `role.ceo`. Anything else joins
+  back from `people/` or `classified/`.
+
+Read timings on this machine (2026-10-22): all 15 years of `people/`, 11
+columns, in 48 s from S3. One bucket (about 30 MB) in 1.8 s; one org's
+rows in 0.4 s when the filter names its bucket. Within-org linkage
+needs one org's records at a time, so it runs one bucket per worker.
+Cross-org linkage needs every org, but only the person profiles (at most
+about 16M, one per within-org `EMP_ID`) and only profiles that share a
+surname blocking key, so it does not need the records at once.
+
 ## Reading it
 
 ```r
 library(arrow)
-people <- open_dataset("s3://nccs-efile/dev/synthid/partvii-v3_1/people")
-# or locally:
+s3 <- "s3://nccs-efile/dev/synthid/partvii-v3_1"
+people  <- open_dataset(file.path(s3, "people"))
+# Declare bucket a string: by default arrow reads "07" as the integer 7.
+buckets <- open_dataset(file.path(s3, "people-by-ein"),
+                        partitioning = hive_partition(bucket = utf8()))
+
+# one bucket = a complete panel for ~8,000 orgs (1.8 s from S3)
+b07 <- read_parquet(file.path(s3, "people-by-ein/bucket=07/part-0.parquet"))
+
+# one org, all years: give the bucket (last two EIN digits) so arrow opens one
+# file (0.4 s from S3; 14.6 s on ein alone, which opens all 100)
+e <- "EIN-02-0513507"
+dplyr::collect(dplyr::filter(buckets, bucket == substr(e, 13, 14), ein == e))
+
+# locally:
 people <- open_dataset(file.path(Sys.getenv("USERPROFILE"), "Documents/SYNTHID/partvii-v3_1/people"))
 ```
