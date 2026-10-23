@@ -38,3 +38,14 @@ test_that("legitimate parse variants still score high", {
   expect_gt(compare_two_names("COHEN", "COHEN-GANTSOUDES"), 0.95) # added token
   expect_gt(compare_two_names("SMITH-JONES", "JONES-SMITH"), 0.95) # reorder
 })
+
+test_that("compare_last_names() equals compare_two_names() pair by pair", {
+  v <- c(NA, "", " ", "-", " - ", "--", "X-", ".", "A", "SMITH", "  SMITH ", "SMYTHE",
+         "O'BRIEN", "OBRIEN", "MC LANE", "MCLANE", "MC-LANE", "ANDREWS-MCLANE",
+         "ANDREWS MCLANE", "SMITH JR.", "VAN DER BERG", "VANDERBERG", "DE LA CRUZ",
+         "ST. JOHN", "ST JOHN", "WEINER-COHEN", "COHEN-GANTSOUDES", "COHEN", "MOORE-SMITH")
+  g <- expand.grid(a = v, b = v, stringsAsFactors = FALSE)
+  ref <- vapply(seq_len(nrow(g)), function(i) compare_two_names(g$a[i], g$b[i]), numeric(1))
+  expect_identical(compare_last_names(g$a, g$b), ref)
+  expect_identical(compare_last_names(character(0), character(0)), numeric(0))
+})
