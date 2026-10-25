@@ -48,7 +48,9 @@ list-columns for the variant sets:
 key) is carried through too when the input panel has it, so an
 incremental match can inherit it (\code{\link[=match_to_profiles]{match_to_profiles()}}).}
 \item{\code{last_name}, \code{last_name_variants}, \code{last_name_keys}}{Modal surname;
-the distinct surnames observed; their phonetic (Soundex) blocking keys.}
+the distinct surnames observed; their phonetic (Soundex) blocking keys,
+one per surname and one per component of a compound one
+(\code{\link[=surname_blocking_keys]{surname_blocking_keys()}}).}
 \item{\code{first_name}, \code{first_name_variants}, \code{first_name_roots},
 \code{first_initial}}{Most-complete formal given name; distinct given names;
 their canonical nickname roots (\code{\link[=first_name_roots]{first_name_roots()}}); leading initial.}
@@ -78,8 +80,9 @@ variants (for blocking recall and pairwise scoring).
 \details{
 The profile is the unit compared in the cross-org stage. Stage 1 (candidate
 generation) is a hash/inverted-index lookup on blocking keys rather than a
-materialized within-block cross product: a profile emits one key per surname
-variant (\code{last_name_keys}, phonetic), lands in every matching bucket, and only
+materialized within-block cross product: a profile emits a key per surname
+variant and per component of a compound surname (\code{last_name_keys}, phonetic;
+see \code{\link[=surname_blocking_keys]{surname_blocking_keys()}}), lands in every matching bucket, and only
 profiles sharing a bucket are scored -- so maiden/married/OCR variants are not
 silently dropped, and a common surname never materializes an all-pairs block.
 }

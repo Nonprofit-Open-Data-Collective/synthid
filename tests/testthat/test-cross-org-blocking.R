@@ -94,3 +94,26 @@ test_that("a person filing from two metros lands in both metro buckets", {
   mk <- mk$block_key[mk$pass == "metro"]
   expect_setequal(mk, c("metro|S530|35620|B", "metro|S530|41860|B"))
 })
+
+test_that("a compound surname blocks with each of its components across orgs", {
+  panel <- rbind(
+    rec_b("EIN-1", "COMPOUND", "MARIA", "GARCIA-LOPEZ", "NY", "35620", "B25"),
+    rec_b("EIN-2", "FIRST",    "MARIA", "GARCIA",       "NY", "35620", "B25"),
+    rec_b("EIN-3", "SECOND",   "MARIA", "LOPEZ",        "NY", "35620", "B25")
+  )
+  prof <- build_person_profile(panel, state = "org.state", cbsa = "org.cbsa",
+                               ntee = "org.ntee")
+  keys <- setNames(prof$last_name_keys, prof$EMP_ID)
+  # the whole-string key is shared with neither component: that is why the
+  # compound surname was invisible to blocking before the component keys
+  expect_false(any(c("G620", "L120") == "G624"))
+  expect_true("G624" %in% keys[["COMPOUND"]])
+  expect_true(all(c("G620", "L120") %in% keys[["COMPOUND"]]))
+
+  cand <- candidate_pairs(person_blocking_keys(prof), prof)
+  pairs <- paste(cand$emp_a, cand$emp_b)
+  expect_true(any(pairs %in% c("COMPOUND FIRST", "FIRST COMPOUND")))
+  expect_true(any(pairs %in% c("COMPOUND SECOND", "SECOND COMPOUND")))
+  # the two single-surname people share no key, so they are not a candidate
+  expect_false(any(pairs %in% c("FIRST SECOND", "SECOND FIRST")))
+})

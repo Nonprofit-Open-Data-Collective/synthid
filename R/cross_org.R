@@ -34,10 +34,11 @@ blocking_passes <- function() {
 #'
 #' Turns each [build_person_profile()] row into the set of hash buckets it belongs
 #' to -- the stage-1 input for cross-organization linkage. Because a profile keeps
-#' its *variant sets*, it emits the Cartesian product of its surname phonetic keys,
-#' states, and (truncated) NTEE codes for each requested pass, so a person with a
-#' maiden and a married surname, or activity in two states, lands in every
-#' matching bucket instead of a single one.
+#' its *variant sets*, it emits the Cartesian product of its surname phonetic keys
+#' ([surname_blocking_keys()]), states, metro areas and (truncated) NTEE codes for
+#' each requested pass, so a person with a maiden and a married surname, a
+#' compound surname, or activity in two states, lands in every matching bucket
+#' instead of a single one.
 #'
 #' Keys are namespaced by pass, so a `strict` bucket and a `surname` bucket never
 #' collide even when they share a surname key. A pass that needs a component the

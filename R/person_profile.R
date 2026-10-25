@@ -11,8 +11,9 @@
 #'
 #' The profile is the unit compared in the cross-org stage. Stage 1 (candidate
 #' generation) is a hash/inverted-index lookup on blocking keys rather than a
-#' materialized within-block cross product: a profile emits one key per surname
-#' variant (`last_name_keys`, phonetic), lands in every matching bucket, and only
+#' materialized within-block cross product: a profile emits a key per surname
+#' variant and per component of a compound surname (`last_name_keys`, phonetic;
+#' see [surname_blocking_keys()]), lands in every matching bucket, and only
 #' profiles sharing a bucket are scored -- so maiden/married/OCR variants are not
 #' silently dropped, and a common surname never materializes an all-pairs block.
 #'
@@ -41,7 +42,9 @@
 #'       key) is carried through too when the input panel has it, so an
 #'       incremental match can inherit it ([match_to_profiles()]).}
 #'     \item{`last_name`, `last_name_variants`, `last_name_keys`}{Modal surname;
-#'       the distinct surnames observed; their phonetic (Soundex) blocking keys.}
+#'       the distinct surnames observed; their phonetic (Soundex) blocking keys,
+#'       one per surname and one per component of a compound one
+#'       ([surname_blocking_keys()]).}
 #'     \item{`first_name`, `first_name_variants`, `first_name_roots`,
 #'       `first_initial`}{Most-complete formal given name; distinct given names;
 #'       their canonical nickname roots ([first_name_roots()]); leading initial.}
@@ -127,11 +130,6 @@ build_person_profile <- function(df, cols = synthid_cols(),
     full <- v[nchar(v) > 1L]
     modal(if (length(full)) full else v)
   }
-  phon <- function(v) {
-    if (!length(v)) return(character(0))
-    p <- suppressWarnings(stringdist::phonetic(gsub("[^A-Z]", "", v)))
-    sort(unique(p[!is.na(p) & nzchar(p)]))
-  }
   roots_of <- function(v) {
     if (!length(v)) return(character(0))
     sort(unique(unlist(lapply(v, first_name_roots), use.names = FALSE)))
@@ -174,7 +172,7 @@ build_person_profile <- function(df, cols = synthid_cols(),
     scal$first_name[i] <- fn
     scal$first_initial[i] <- if (!is.na(fn)) substr(fn, 1, 1) else NA_character_
     scal$gender[i] <- modal(gender[r])
-    ln_var[[i]] <- lv; ln_key[[i]] <- phon(lv)
+    ln_var[[i]] <- lv; ln_key[[i]] <- surname_blocking_keys(lv)
     fn_var[[i]] <- fv; fn_root[[i]] <- roots_of(fv)
     mid[[i]] <- uset(substr(middle[r], 1, 1)); suf[[i]] <- uset(suffix[r])
     nmv[[i]] <- uset(fullnm[r]); orgs[[i]] <- uset(org[r])
