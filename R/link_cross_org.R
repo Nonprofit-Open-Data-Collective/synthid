@@ -227,9 +227,11 @@ resolve_cross_org <- function(edges, profiles) {
 #'
 #' @param df A linked panel (output of [link_panel()]).
 #' @param cols Column mapping; see [synthid_cols()].
-#' @param state,ntee Optional organization geography / NTEE columns for the tighter
-#'   blocking passes (join from the BMF beforehand). `NULL` -> those passes emit
-#'   nothing and linkage falls back to the surname pass.
+#' @param state,cbsa,ntee Optional organization geography (state, metro area) /
+#'   NTEE columns for the tighter blocking passes (join from the BMF
+#'   beforehand). `NULL` -> those passes emit nothing and linkage falls back to
+#'   the surname pass, whose buckets are then the first to be dropped for
+#'   exceeding `max_block_size`.
 #' @param passes Blocking passes to run; see [blocking_passes()].
 #' @param weights Base match weights; see [default_weights()].
 #' @param threshold Minimum score to accept a cross-org edge (default `7`, the
@@ -254,7 +256,7 @@ resolve_cross_org <- function(edges, profiles) {
 #'   [candidate_pairs()], [score_candidate_pairs()]
 #' @export
 link_cross_org <- function(df, cols = synthid_cols(),
-                           state = NULL, ntee = NULL,
+                           state = NULL, cbsa = NULL, ntee = NULL,
                            passes = names(blocking_passes()),
                            weights = default_weights(),
                            threshold = 7, max_block_size = 5000L,
@@ -262,7 +264,8 @@ link_cross_org <- function(df, cols = synthid_cols(),
   say <- function(...) if (verbose) message(...)
 
   say("Building person profiles...")
-  profiles <- build_person_profile(df, cols = cols, state = state, ntee = ntee)
+  profiles <- build_person_profile(df, cols = cols, state = state, cbsa = cbsa,
+                                   ntee = ntee)
   say("  ", nrow(profiles), " persons")
 
   say("Emitting blocking keys...")

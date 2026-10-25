@@ -10,6 +10,7 @@ build_person_profile(
   emp_id = "EMP_ID",
   title = "title.standard",
   state = NULL,
+  cbsa = NULL,
   ntee = NULL,
   overrides = NULL
 )
@@ -28,10 +29,13 @@ build_person_profile(
 role via \code{\link[=classify_title_role]{classify_title_role()}} (default \code{"title.standard"}; skipped if
 absent).}
 
-\item{state, ntee}{Optional column names for organization geography and NTEE
-industry. When present they are carried into the profile as variant sets and
-are available as relaxable blocking dimensions; when \code{NULL} or absent they
-are skipped (join them from the BMF beforehand if you want them).}
+\item{state, cbsa, ntee}{Optional column names for organization geography (a
+state and a metro area) and NTEE industry. When present they are carried
+into the profile as variant sets and are available as relaxable blocking
+dimensions; when \code{NULL} or absent they are skipped (join them from the BMF
+beforehand if you want them). \code{cbsa} serves the \code{metro} pass of
+\code{\link[=blocking_passes]{blocking_passes()}}, which catches an interlock across a metro area that
+spans a state line; a person's set holds every CBSA they ever filed from.}
 
 \item{overrides}{Passed to \code{\link[=classify_title_role]{classify_title_role()}} for title tail cases.}
 }
@@ -55,7 +59,8 @@ suffixes; modal gender (\code{NA} on tie/unknown).}
 whether the person \emph{ever} held a \code{BOARD} seat.}
 \item{\code{titles}, \code{orgs}, \code{years}}{Distinct standardized titles,
 organization ids, and tax years for the person.}
-\item{\code{states}, \code{ntee}}{Present only when \code{state}/\code{ntee} are supplied.}
+\item{\code{states}, \code{cbsa}, \code{ntee}}{Present only when \code{state}/\code{cbsa}/\code{ntee}
+are supplied.}
 }
 List-columns hold one character vector per person; unnest \code{last_name_keys}
 (with \code{EMP_ID}) to get the long key table for the stage-1 hash join.

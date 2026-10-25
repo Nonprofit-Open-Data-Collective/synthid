@@ -16,3 +16,15 @@ that must agree for two people to share a bucket. Geography is relaxed before
 industry (people move; cross-industry interlocks are the interesting edges) and
 surname is never fully dropped.
 }
+\details{
+Geography is relaxed in two steps, because a state key and a metro area are
+not nested. Someone who sits on two boards is usually local or regional, so
+geography is the strongest signal available -- but 40-odd metro areas cross a
+state line (New York-Newark, Kansas City, Philadelphia-Camden, Washington),
+and a \code{state} key splits each of those in two. The \code{metro} pass keys on the
+CBSA instead, which crosses the line by construction, so a two-state metro
+interlock is still caught at a tight pass rather than falling through to
+\code{geo}, whose buckets are far more likely to exceed \code{max_block_size} in
+\code{\link[=candidate_pairs]{candidate_pairs()}}. A pair in one state and one metro hits \code{strict} first;
+\code{metro} is what catches the pair that \code{strict} cannot see.
+}

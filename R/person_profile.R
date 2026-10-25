@@ -25,10 +25,13 @@
 #' @param title Name of the standardized-title column, classified into a coarse
 #'   role via [classify_title_role()] (default `"title.standard"`; skipped if
 #'   absent).
-#' @param state,ntee Optional column names for organization geography and NTEE
-#'   industry. When present they are carried into the profile as variant sets and
-#'   are available as relaxable blocking dimensions; when `NULL` or absent they
-#'   are skipped (join them from the BMF beforehand if you want them).
+#' @param state,cbsa,ntee Optional column names for organization geography (a
+#'   state and a metro area) and NTEE industry. When present they are carried
+#'   into the profile as variant sets and are available as relaxable blocking
+#'   dimensions; when `NULL` or absent they are skipped (join them from the BMF
+#'   beforehand if you want them). `cbsa` serves the `metro` pass of
+#'   [blocking_passes()], which catches an interlock across a metro area that
+#'   spans a state line; a person's set holds every CBSA they ever filed from.
 #' @param overrides Passed to [classify_title_role()] for title tail cases.
 #' @return A data frame, one row per `EMP_ID`, with scalar summary columns and
 #'   list-columns for the variant sets:
@@ -49,7 +52,8 @@
 #'       whether the person *ever* held a `BOARD` seat.}
 #'     \item{`titles`, `orgs`, `years`}{Distinct standardized titles,
 #'       organization ids, and tax years for the person.}
-#'     \item{`states`, `ntee`}{Present only when `state`/`ntee` are supplied.}
+#'     \item{`states`, `cbsa`, `ntee`}{Present only when `state`/`cbsa`/`ntee`
+#'       are supplied.}
 #'   }
 #'   List-columns hold one character vector per person; unnest `last_name_keys`
 #'   (with `EMP_ID`) to get the long key table for the stage-1 hash join.
@@ -66,7 +70,7 @@
 build_person_profile <- function(df, cols = synthid_cols(),
                                  emp_id = "EMP_ID",
                                  title = "title.standard",
-                                 state = NULL, ntee = NULL,
+                                 state = NULL, cbsa = NULL, ntee = NULL,
                                  overrides = NULL) {
   stopifnot(is.data.frame(df))
   if (!emp_id %in% names(df)) {
@@ -95,6 +99,7 @@ build_person_profile <- function(df, cols = synthid_cols(),
   } else NULL
   titl   <- col(title)
   st     <- col(state)
+  cb     <- col(cbsa)
   nt     <- col(ntee)
 
   ## Fall back to the full name where a component is entirely absent.
@@ -152,7 +157,7 @@ build_person_profile <- function(df, cols = synthid_cols(),
     stringsAsFactors = FALSE
   )
   ln_var <- ln_key <- fn_var <- fn_root <- mid <- suf <- nmv <-
-    rol <- ttl <- orgs <- yrs <- sts <- nts <- vector("list", n)
+    rol <- ttl <- orgs <- yrs <- sts <- cbs <- nts <- vector("list", n)
 
   for (i in seq_len(n)) {
     r  <- idx[[i]]
@@ -180,6 +185,7 @@ build_person_profile <- function(df, cols = synthid_cols(),
     } else { rol[[i]] <- character(0); scal$primary_role[i] <- NA_character_; scal$is_board[i] <- NA }
     ttl[[i]] <- uset(titl[r])
     if (!is.null(st)) sts[[i]] <- uset(st[r])
+    if (!is.null(cb)) cbs[[i]] <- uset(cb[r])
     if (!is.null(nt)) nts[[i]] <- uset(nt[r])
   }
 
@@ -195,6 +201,7 @@ build_person_profile <- function(df, cols = synthid_cols(),
   scal$orgs                <- orgs
   scal$years               <- yrs
   if (!is.null(st)) scal$states <- sts
+  if (!is.null(cb)) scal$cbsa   <- cbs
   if (!is.null(nt)) scal$ntee   <- nts
   if (!is.null(anchor_of)) scal$EMP_ANCHOR <- unname(anchor_of)
 
@@ -205,6 +212,7 @@ build_person_profile <- function(df, cols = synthid_cols(),
            "first_name", "first_name_variants", "first_name_roots", "first_initial",
            "middle_initials", "suffixes", "gender", "name_variants",
            "primary_role", "roles", "is_board", "titles", "orgs", "years",
-           if (!is.null(st)) "states", if (!is.null(nt)) "ntee")
+           if (!is.null(st)) "states", if (!is.null(cb)) "cbsa",
+           if (!is.null(nt)) "ntee")
   scal[, ord, drop = FALSE]
 }

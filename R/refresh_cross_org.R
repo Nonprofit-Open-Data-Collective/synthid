@@ -57,8 +57,8 @@ diff_cross_org <- function(prior, new) {
 #'   `assignment` data frame or a whole [link_cross_org()] result list. `NULL`
 #'   skips the diff.
 #' @param cols Column mapping; see [synthid_cols()].
-#' @param state,ntee Optional geography / industry columns for tighter blocking;
-#'   see [link_cross_org()].
+#' @param state,cbsa,ntee Optional geography / industry columns for tighter
+#'   blocking; see [link_cross_org()].
 #' @param threshold,max_block_size,weights,verbose Passed to [link_cross_org()].
 #' @return A list: `xorg` (the full [link_cross_org()] result), `assignment` (its
 #'   `EMP_ID` -> `XORG_ID` map, for convenience), and `changes` (the
@@ -74,7 +74,7 @@ diff_cross_org <- function(prior, new) {
 #' @seealso [link_incremental()], [link_cross_org()]
 #' @export
 refresh_cross_org <- function(merged, prior = NULL, cols = synthid_cols(),
-                              state = NULL, ntee = NULL,
+                              state = NULL, cbsa = NULL, ntee = NULL,
                               weights = default_weights(), threshold = 7,
                               max_block_size = 5000L, verbose = FALSE) {
   stopifnot(is.data.frame(merged))
@@ -82,7 +82,8 @@ refresh_cross_org <- function(merged, prior = NULL, cols = synthid_cols(),
     stop("refresh_cross_org(): `merged` must carry EMP_ID (link it first).",
          call. = FALSE)
   }
-  xo <- link_cross_org(merged, cols = cols, state = state, ntee = ntee,
+  xo <- link_cross_org(merged, cols = cols, state = state, cbsa = cbsa,
+                       ntee = ntee,
                        weights = weights, threshold = threshold,
                        max_block_size = max_block_size, verbose = verbose)
 
