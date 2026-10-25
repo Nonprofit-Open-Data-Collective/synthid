@@ -24,7 +24,7 @@ keep <- c("OBJECTID", "TABLE_ID", "EIN2", "TAX_YEAR", "RETURN_TYPE",
           "title.match", "emp.level", "board.role", "tot.hours", "tot.comp",
           "dtk.indiv.trustee.x", "dtk.officer.x", "dtk.key.empl.x", "dtk.high.comp.x", "dtk.former.x",
           "role.position", "role.final", "role.board", "role.ceo", "role.source", "role.method",
-          "role.primary", "org.leadership")
+          "role.primary", "org.leadership", "org.type", "org.type.source")
 
 # ---- one row per person per filing, per year ------------------------------------
 prim <- function(y) {
@@ -46,15 +46,45 @@ t0   <- Sys.time()
 uniq <- unique(unlist(lapply(pp_by_year, `[[`, "dtk.name"), use.names = FALSE))
 stamp("%s distinct names across %s person rows", format(length(uniq), big.mark = ","),
       format(sum(vapply(pp_by_year, nrow, 1L)), big.mark = ","))
-# parse_names() runs its own furrr multisession plan over all cores, and its
-# workers find census.names only when peopleparser is attached.
-chunks <- split(uniq, ceiling(seq_along(uniq) / 1e6))
-parsed <- rbindlist(lapply(seq_along(chunks), function(i) {
-  p <- as.data.table(parse_names(chunks[[i]]))
-  stamp("  names chunk %d of %d parsed", i, length(chunks))
-  p
-}))
-stopifnot(nrow(parsed) == length(uniq))
+NAME_COLS <- c("name", "salutation", "first_name", "middle_name", "last_name", "suffix", "gender")
+parse_chunked <- function(u) {
+  # parse_names() runs its own furrr multisession plan over all cores, and its
+  # workers find census.names only when peopleparser is attached.
+  ch <- split(u, ceiling(seq_along(u) / 1e6))
+  rbindlist(lapply(seq_along(ch), function(i) {
+    p <- as.data.table(parse_names(ch[[i]]))[, ..NAME_COLS]
+    stamp("  names chunk %d of %d parsed", i, length(ch))
+    p
+  }))
+}
+# Reuse an earlier build's parsed names (REUSE_NAMES_FROM: its people/ folder).
+# The parsed name depends only on dtk.name (titleclassifier step 01) and
+# peopleparser, so when neither changed the earlier result is exact; a
+# random 50,000 reused names are parsed again and must match.
+reuse_dir <- Sys.getenv("REUSE_NAMES_FROM")
+parsed <- data.table(dtk.name = uniq)
+if (nzchar(reuse_dir)) {
+  old <- as.data.table(dplyr::collect(dplyr::select(open_dataset(reuse_dir), PERSON_YEAR_ID, all_of(NAME_COLS))))
+  key <- rbindlist(lapply(pp_by_year, function(p)
+    data.table(PERSON_YEAR_ID = synthid::person_year_id(p$OBJECTID, p$TABLE_ID), dtk.name = p$dtk.name)))
+  old <- merge(key, old, by = "PERSON_YEAR_ID")[!duplicated(dtk.name)][, PERSON_YEAR_ID := NULL]
+  rm(key); gc(verbose = FALSE)
+  set.seed(SEED); chk <- old[sample(.N, min(.N, 50000L))]
+  fresh <- as.data.table(parse_names(chk$dtk.name))[, ..NAME_COLS]
+  ok <- isTRUE(all.equal(as.data.frame(chk[, ..NAME_COLS]), as.data.frame(fresh), check.attributes = FALSE))
+  stamp("reusing parsed names from %s: %s of %s distinct names; 50,000 re-parsed match: %s", reuse_dir,
+        format(nrow(old), big.mark = ","), format(length(uniq), big.mark = ","), ok)
+  if (!ok) stop("re-parsed names differ from the reused ones; unset REUSE_NAMES_FROM")
+  parsed <- merge(parsed, old, by = "dtk.name", all.x = TRUE, sort = FALSE)
+}
+todo <- if ("name" %in% names(parsed)) parsed[is.na(name) & !(dtk.name %in% old$dtk.name), dtk.name] else uniq
+if (length(todo)) {
+  stamp("parsing %s names", format(length(todo), big.mark = ","))
+  fresh <- cbind(data.table(dtk.name = todo), parse_chunked(todo))
+  parsed <- rbind(parsed[!dtk.name %in% todo], fresh, fill = TRUE)
+}
+parsed <- parsed[match(uniq, dtk.name)]
+stopifnot(nrow(parsed) == length(uniq), identical(parsed$dtk.name, uniq))
 stamp("parsed names in %.1f min", as.numeric(Sys.time() - t0, units = "mins"))
 
 # ---- write people-<year> ------------------------------------------------------------
@@ -76,7 +106,7 @@ summ <- rbindlist(lapply(names(pp_by_year), function(yy) {
     high.comp.x = pp$dtk.high.comp.x, former.x = pp$dtk.former.x,
     role.position = pp$role.position, role.final = pp$role.final, role.board = pp$role.board,
     role.ceo = pp$role.ceo, role.source = pp$role.source, role.method = pp$role.method,
-    org.leadership = pp$org.leadership
+    org.leadership = pp$org.leadership, org.type = pp$org.type, org.type.source = pp$org.type.source
   )
   setorder(people, ein, OBJECTID, TABLE_ID)
   stopifnot(!anyDuplicated(people$PERSON_YEAR_ID))

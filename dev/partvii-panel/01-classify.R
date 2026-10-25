@@ -30,6 +30,12 @@ invisible(parallel::clusterEvalQ(cl, suppressPackageStartupMessages(library(titl
 
 frame <- readRDS(file.path(sd_frame, "filings.rds"))
 setDT(frame)
+# NTEE code and 501(c) subsection from the unified BMF (dev/devdata/04-extract.R
+# cache), for step 09's organization type (titleclassifier F-033). Without them
+# the type is inferred from the name and titles only.
+bmf <- as.data.table(read_parquet(Sys.glob(file.path(sd_root, "bmf", "bmf", "*.parquet")),
+                                  col_select = c("EIN2", "ntee_code_clean", "subsection_code")))
+stopifnot(!anyDuplicated(bmf$EIN2))
 
 for (y in yrs) {
   f <- cls_file(y)
@@ -39,6 +45,7 @@ for (y in yrs) {
   n0  <- nrow(raw)
   raw <- raw[OBJECTID %in% frame[TAX_YEAR == y, OBJECTID]]
   raw[, TAX_YEAR := as.character(as.integer(TAX_YEAR))]
+  raw <- merge(raw, bmf, by = "EIN2", all.x = TRUE, sort = FALSE)
   raw <- as.data.frame(raw)
   raw[] <- lapply(raw, function(v) { v <- as.character(v); v[is.na(v)] <- ""; v })
   objs <- unique(raw$OBJECTID)

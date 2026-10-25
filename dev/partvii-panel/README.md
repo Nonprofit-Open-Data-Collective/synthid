@@ -41,7 +41,7 @@ matched its GitHub head:
 
 | Package | Installed from | Notes |
 |---|---|---|
-| titleclassifier | GitHub `bdfda4e` (branch `fix/comma-helper-null`, [PR #35](https://github.com/Nonprofit-Open-Data-Collective/titleclassifier/pull/35)) | main `104c92a` (PR #34: board-title crosswalk patch, taxonomy orphans pruned) plus the two batch-dependence fixes below |
+| titleclassifier | GitHub main `1ffb8af` (2026-10-23) | adds PRs #35 (the two batch-dependence fixes below), #36 (crosswalk review, F-030), #37 (CEO and board label set, F-031), #38 (step 09 rules fixed against it, F-032) and #39 (CEO thesaurus by organization type, F-033). The organization type uses the NTEE code and 501(c) subsection, joined from the unified BMF (97.9% of panel orgs) in `01-classify.R`. Build 1 (2026-10-21, `bdfda4e`) is kept locally as `partvii-v3_1-build1/`. |
 | peopleparser | local `cb01547` (master) | |
 | panel990 | `7cd26a6` | head `3a5188a` changes docs only; not used here (efile cache already built) |
 | synthid | local `9b2cbd8` | only `person_year_id()` is used |
