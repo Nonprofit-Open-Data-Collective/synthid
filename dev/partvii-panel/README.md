@@ -85,7 +85,7 @@ Not in this build: the 650 crosswalk proposals in `dev/CROSSWALK-UPDATES.md`
 |---|---|---|---|---|
 | `classified/` | tax year | 60.6M person-title rows | all 153 (source + titleclassifier) | title and role analysis; joins on `OBJECTID` + `TABLE_ID` |
 | `people/` | tax year | 58.4M people | 34 | one year at a time |
-| `people-by-ein/` | EIN bucket (`bucket=00`-`99`) | 58.4M people, 539k-715k a bucket | 24 linker columns | **linkage**: each bucket holds every year of ~8,000 orgs, so it is a self-contained panel for one worker |
+| `people-by-ein/` | EIN bucket (`bucket=00`-`99`) | 58.4M people, 539k-715k a bucket | 26 linker columns | **linkage**: each bucket holds every year of ~8,000 orgs, so it is a self-contained panel for one worker |
 
 `people-by-ein/`:
 - **Bucket** = the last two digits of the EIN. They split organizations
@@ -94,7 +94,9 @@ Not in this build: the 650 crosswalk proposals in `dev/CROSSWALK-UPDATES.md`
 - **Sorted** by `ein`, `taxyr`, `OBJECTID`, `TABLE_ID`, in row groups of
   100,000 rows, so a filter on `ein` reads only the row groups that hold it.
 - **Columns:** `PERSON_YEAR_ID`, `OBJECTID`, `TABLE_ID`, `ein`, `taxyr`,
-  `formtype`, `org.name`, the name and parsed name parts (`name`, `name.raw`,
+  `formtype`, `org.name`, `org.state` and `org.ntee` (the geography and
+  industry blocking passes of cross-org linkage), the name and parsed name
+  parts (`name`, `name.raw`,
   `salutation`, `first_name`, `middle_name`, `last_name`, `suffix`, `gender`),
   `title.standard`, `title.raw`, `tot.hours`, `tot.comp`, `trustee.x`,
   `officer.x`, `role.final`, `role.board`, `role.ceo`. Anything else joins

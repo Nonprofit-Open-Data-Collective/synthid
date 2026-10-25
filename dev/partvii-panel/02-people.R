@@ -7,6 +7,9 @@
 # parse_names() is a pure per-string map, so the distinct name strings across
 # all years are parsed once and joined back (exact).
 #
+# Adds org.state and org.ntee to that layout, which cross-organization linkage
+# blocks on (see below).
+#
 # Writes SYNTHID_DIR/partvii-v3_1/people/people-<year>.parquet and
 # dev/partvii-panel/panel-summary.csv (committed).
 #
@@ -24,7 +27,20 @@ keep <- c("OBJECTID", "TABLE_ID", "EIN2", "TAX_YEAR", "RETURN_TYPE",
           "title.match", "emp.level", "board.role", "tot.hours", "tot.comp",
           "dtk.indiv.trustee.x", "dtk.officer.x", "dtk.key.empl.x", "dtk.high.comp.x", "dtk.former.x",
           "role.position", "role.final", "role.board", "role.ceo", "role.source", "role.method",
-          "role.primary", "org.leadership", "org.type", "org.type.source")
+          "role.primary", "org.leadership", "org.type", "org.type.source", "ntee_code_clean")
+
+# ---- organization state and NTEE code ------------------------------------------
+# The geography and industry blocking passes of cross-organization linkage
+# (synthid::blocking_passes(): strict, geo, industry) emit nothing for a person
+# whose profile lacks states or ntee, so without these two columns only the
+# surname pass can fire. The state is the filing header's, one per filing, so it
+# follows an organization that moves; the NTEE code is the BMF's (joined in
+# 01-classify.R), one per organization. person_blocking_keys() keys on the
+# leading character of the code, so the whole code is carried here.
+frame <- as.data.table(readRDS(file.path(sd_frame, "filings.rds")))
+st_of <- setNames(frame$F9_00_ORG_ADDR_STATE, as.character(frame$OBJECTID))
+stopifnot(!anyDuplicated(names(st_of)))
+rm(frame); gc(verbose = FALSE)
 
 # ---- one row per person per filing, per year ------------------------------------
 prim <- function(y) {
@@ -96,6 +112,7 @@ summ <- rbindlist(lapply(names(pp_by_year), function(yy) {
     OBJECTID = as.character(pp$OBJECTID), TABLE_ID = as.character(pp$TABLE_ID),
     ein = pp$EIN2, taxyr = as.integer(pp$TAX_YEAR), formtype = pp$RETURN_TYPE,
     org.name = pp$org.name,
+    org.state = unname(st_of[as.character(pp$OBJECTID)]), org.ntee = pp$ntee_code_clean,
     name = pn$name, name.raw = pp$F9_07_COMP_DTK_NAME_PERS,
     salutation = pn$salutation, first_name = pn$first_name, middle_name = pn$middle_name,
     last_name = pn$last_name, suffix = pn$suffix, gender = pn$gender,

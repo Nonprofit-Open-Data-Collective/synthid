@@ -10,9 +10,10 @@
 # Each file is sorted by ein, taxyr, OBJECTID, TABLE_ID and written in row
 # groups of ROW_GROUP rows, so a query for particular organizations reads only
 # the row groups that hold them. Columns: the linker's inputs (synthid_cols())
-# plus the fields the anomaly scan, transitions and role passes read. Every
-# other column joins back from people/ or classified/ on PERSON_YEAR_ID
-# (or OBJECTID + TABLE_ID).
+# plus the fields the anomaly scan, transitions and role passes read, and
+# org.state and org.ntee, which the cross-organization blocking passes need
+# (05-link.R). Every other column joins back from people/ or classified/ on
+# PERSON_YEAR_ID (or OBJECTID + TABLE_ID).
 #
 # Writes SYNTHID_DIR/partvii-v3_1/people-by-ein/bucket=NN/part-0.parquet
 #
@@ -23,7 +24,8 @@ ROW_GROUP <- 100000L
 pv_bkt <- file.path(pv_root, "people-by-ein")
 
 LINKER_COLS <- c(
-  "PERSON_YEAR_ID", "OBJECTID", "TABLE_ID", "ein", "taxyr", "formtype", "org.name",
+  "PERSON_YEAR_ID", "OBJECTID", "TABLE_ID", "ein", "taxyr", "formtype",
+  "org.name", "org.state", "org.ntee",
   "name", "name.raw", "salutation", "first_name", "middle_name", "last_name", "suffix", "gender",
   "title.standard", "title.raw", "tot.hours", "tot.comp",
   "trustee.x", "officer.x", "role.final", "role.board", "role.ceo")
