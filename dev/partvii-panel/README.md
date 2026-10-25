@@ -18,6 +18,15 @@ development cohorts in `dev/devdata/`.
 | 2 | `02-people.R` | one row per person per filing (the `role.primary` title row), names parsed once per distinct string | `people/people-<year>.parquet`, committed `panel-summary.csv` |
 | 3 | `03-upload.R` | manifest (rows, bytes, md5) and `aws s3 sync` | the S3 prefix above |
 | 4 | `04-bucket.R` | the people rows re-laid by EIN bucket for linkage (then re-run step 3) | `people-by-ein/bucket=NN/part-0.parquet`, committed `bucket-summary.csv` |
+| 5 | `05-link.R` | within-organization linkage, one EIN bucket a task | `emp-map/bucket=NN`, `link-runs/bucket=NN.rds`, and `profiles/` with `profiles = TRUE` |
+| 5b | `05b-profiles.R` | person profiles from an existing `emp-map`, without re-running the linkage | `profiles/bucket=NN`, `profile-runs/bucket=NN.rds` |
+| — | `05-status.R` | where an interrupted step 5 got to, and whether any emp-map is truncated | committed `link-status.csv` |
+| 6 | `06-score.R` | score the linkage against the `core_dev` baseline | committed `score-<tag>.csv` |
+| 7 | `07-orgs.R` | one row per organization, with the group-return flag | `orgs/orgs.parquet`, committed `group-return-summary.csv` |
+
+Cross-organization linkage needs the geography and industry blocking keys, so
+`00-cbsa.R` (the ZIP-to-CBSA crosswalk, written to `cbsa/`) runs before step 2.
+`dev/partvii-panel/PLAN-cross-org.md` has the order and the open questions.
 
 Rules carried over from the development dataset:
 - **Filing unit:** the latest submission per EIN x tax year (`02-frame.R`), so

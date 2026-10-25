@@ -171,16 +171,26 @@ layout is rebuilt whole, not incrementally, so let it finish. Row counts and
 `PERSON_YEAR_ID`s must match `people/` exactly — the same check the original
 build made.
 
-## Step 4 — add a profiles-only step, and run it
+## Step 4 — build the profiles (`05b-profiles.R`)
 
-New script, `05b-profiles.R`. This is the piece of work that does not exist
-yet, and the reason it matters is cost: profiles took 2-3x the linkage
-(120-170 min a bucket), and `05-link.R` builds them only inside
-`link_bucket()`, skipping any bucket whose emp-map already exists. As the code
-stands, getting profiles for an already-linked bucket means re-running the
-linkage for it.
+```
+Rscript dev/partvii-panel/05b-profiles.R <workers> all
+```
 
-Spec:
+The reason this exists is cost: profiles took 2-3x the linkage (120-170 min a
+bucket), and `05-link.R` builds them only inside `link_bucket()`, skipping any
+bucket whose emp-map already exists — so getting profiles for an already-linked
+bucket that way means paying for the linkage again.
+
+A profile written before the blocking columns existed is **not** treated as
+done: the script checks the parquet schema for `states` / `cbsa` / `ntee` and
+rebuilds it if they are missing, since skipping it would silently leave every
+pass but `surname` unable to fire. It also asserts that the emp-map covers its
+bucket row for row, which fails loudly if the two came from different builds.
+`MIN_FREE_GB` is an environment variable (default 12) so the memory gate can be
+matched to the machine.
+
+What it does:
 
 - Input, per bucket: `emp-map/bucket=NN/part-0.parquet` and
   `people-by-ein/bucket=NN/part-0.parquet`.
@@ -195,9 +205,13 @@ Spec:
 - Same shape as `05-link.R`: one bucket per `callr` process, a free-memory
   gate, costliest first, a bucket already written is skipped, progress
   appended to a log.
+- Reports, per bucket and weighted overall, the share of profiles that actually
+  carry a state / CBSA / NTEE set. A low number there means the matching pass
+  will mostly not fire whatever the ladder says, and is the cheap early warning
+  before the measurement in step 6.
 
-Run it for every bucket with a valid emp-map. Buckets with no emp-map go
-through `05-link.R` first (step 5).
+Run it for every bucket with a valid emp-map; buckets with no emp-map are
+reported and left for `05-link.R` (step 5).
 
 ## Step 5 — finish the within-org linkage
 
