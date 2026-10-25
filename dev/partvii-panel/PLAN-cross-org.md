@@ -75,10 +75,15 @@ Three things to read off it:
    all.
 3. Any `BAD` buckets. Delete those emp-map files before step 05.
 
-## Step 1 — decide the CBSA source, then build the crosswalk
+## Step 1 — build the crosswalk (`00-cbsa.R`)
+
+```
+HUD_API_TOKEN=... Rscript dev/partvii-panel/00-cbsa.R hud
+```
 
 The `metro` pass (`103bfde`) does nothing until the panel carries an
-`org.cbsa` column. Two decisions.
+`org.cbsa` column. `00-cbsa.R` builds it: the crosswalk, and the per-filing
+`OBJECTID` -> CBSA lookup that `02-people.R` joins. Two decisions it encodes.
 
 **Where the ZIP comes from.** `02-frame.R` already pulls
 `F9_00_ORG_ADDR_STATE` from the filing header, so the header almost certainly
@@ -110,11 +115,15 @@ filing and so follows an organization that moves.
 
 **Three design points that follow from how blocking uses this.**
 
-1. *A ZIP spanning two CBSAs should emit both.* `build_person_profile()` keeps
-   `cbsa` as a **set** per person, exactly like surnames and states, so a
-   many-to-many crosswalk is not a problem to be resolved — it is extra recall.
-   Keep every CBSA above a small allocation share rather than picking the
-   dominant one. Suggest starting at `tot_ratio >= 0.05` and measuring (step 4).
+1. *A straddling ZIP is kept in the crosswalk, but one CBSA reaches the people
+   rows.* `build_person_profile()` keeps `cbsa` as a **set** per person, so
+   someone filing from two metros gets both keys. But `org.cbsa` is a scalar
+   column and the linker asserts one row per person per filing, so a single ZIP
+   spanning two CBSAs has to resolve to one — the largest allocation share.
+   `zip-cbsa.parquet` keeps every pair above `MIN_SHARE` (0.05), so reaching
+   both CBSAs of a straddling ZIP later is a matter of teaching
+   `build_person_profile()` to read a delimited or list column; the data is
+   already there.
 2. *Use one delineation vintage for all 15 years.* The panel spans TY2010-2024
    and the delineations changed in 2013, 2018 and 2023. Blocking needs keys that
    *collide*, not keys that are historically correct for each year: mixing

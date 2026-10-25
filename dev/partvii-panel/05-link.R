@@ -16,8 +16,9 @@
 #                                      profiles = TRUE: it took 2-3x as long
 #                                      as the linkage, 120-170 min a bucket)
 #
-# The profile carries org.state and org.ntee (04-bucket.R) as the person's set
-# of states and NTEE codes, because person_blocking_keys() emits nothing for a
+# The profile carries org.state, org.cbsa and org.ntee (04-bucket.R) as the
+# person's sets of states, metro areas and NTEE codes, because
+# person_blocking_keys() emits nothing for a
 # pass whose component is missing: without them only the surname pass of
 # blocking_passes() can fire, and candidate_pairs() then drops every surname
 # bucket over max_block_size, which is exactly the common surnames.
@@ -71,7 +72,7 @@ link_bucket <- function(b, f_in, f_map, f_prof, f_run, versions, profiles) {
   if (profiles) {
     t1 <- Sys.time()
     prof <- as.data.table(synthid::build_person_profile(as.data.frame(lk),
-              state = "org.state", ntee = "org.ntee"))
+              state = "org.state", cbsa = "org.cbsa", ntee = "org.ntee"))
     t_prof <- as.numeric(Sys.time() - t1, units = "secs")
     dir.create(dirname(f_prof), recursive = TRUE, showWarnings = FALSE)
     # profiles first, so an emp-map file always means the bucket is complete

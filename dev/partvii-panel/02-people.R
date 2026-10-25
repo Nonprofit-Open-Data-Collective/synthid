@@ -7,8 +7,8 @@
 # parse_names() is a pure per-string map, so the distinct name strings across
 # all years are parsed once and joined back (exact).
 #
-# Adds org.state and org.ntee to that layout, which cross-organization linkage
-# blocks on (see below).
+# Adds org.state, org.cbsa and org.ntee to that layout, which cross-organization
+# linkage blocks on (see below).
 #
 # Writes SYNTHID_DIR/partvii-v3_1/people/people-<year>.parquet and
 # dev/partvii-panel/panel-summary.csv (committed).
@@ -41,6 +41,19 @@ frame <- as.data.table(readRDS(file.path(sd_frame, "filings.rds")))
 st_of <- setNames(frame$F9_00_ORG_ADDR_STATE, as.character(frame$OBJECTID))
 stopifnot(!anyDuplicated(names(st_of)))
 rm(frame); gc(verbose = FALSE)
+
+# The CBSA serves the metro pass, which catches an interlock across a metro area
+# spanning a state line. One per filing, from 00-cbsa.R; absent until that has
+# run, in which case the metro pass simply emits nothing.
+cb_file <- file.path(sd_root, "cbsa", "objectid-cbsa.parquet")
+cb_of <- if (file.exists(cb_file)) {
+  cb <- as.data.table(read_parquet(cb_file))
+  stamp("CBSA for %s filings (00-cbsa.R)", format(nrow(cb), big.mark = ","))
+  setNames(cb$org.cbsa, cb$OBJECTID)
+} else {
+  stamp("no %s: org.cbsa will be empty, so the metro blocking pass will not fire", cb_file)
+  character(0)
+}
 
 # ---- one row per person per filing, per year ------------------------------------
 prim <- function(y) {
@@ -112,7 +125,8 @@ summ <- rbindlist(lapply(names(pp_by_year), function(yy) {
     OBJECTID = as.character(pp$OBJECTID), TABLE_ID = as.character(pp$TABLE_ID),
     ein = pp$EIN2, taxyr = as.integer(pp$TAX_YEAR), formtype = pp$RETURN_TYPE,
     org.name = pp$org.name,
-    org.state = unname(st_of[as.character(pp$OBJECTID)]), org.ntee = pp$ntee_code_clean,
+    org.state = unname(st_of[as.character(pp$OBJECTID)]),
+    org.cbsa = unname(cb_of[as.character(pp$OBJECTID)]), org.ntee = pp$ntee_code_clean,
     name = pn$name, name.raw = pp$F9_07_COMP_DTK_NAME_PERS,
     salutation = pn$salutation, first_name = pn$first_name, middle_name = pn$middle_name,
     last_name = pn$last_name, suffix = pn$suffix, gender = pn$gender,
