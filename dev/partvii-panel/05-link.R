@@ -24,13 +24,25 @@
 # bucket over max_block_size, which is exactly the common surnames.
 #   link-runs/bucket=NN.rds            timings, counts, package versions
 # A bucket already written is skipped, so the script can be stopped and re-run.
+# Outputs are written under a temporary name and renamed into place, and every
+# start / finish / failure goes to link-runs/run-ledger.csv, so after a crash or
+# a forced restart the next run reports what was killed and re-queues it
+# (write_parquet_atomic() and ledger_recover() in _panel.R).
 #
 #   Rscript dev/partvii-panel/05-link.R [workers] [buckets, e.g. 'c("00","37")' or all] [profiles: TRUE/FALSE]
 
 source("dev/partvii-panel/_panel.R")
+build_step("05-link")   # build-log.csv
 args <- commandArgs(trailingOnly = TRUE)
 NW   <- if (length(args) >= 1) as.integer(args[1]) else max(1L, parallel::detectCores(logical = FALSE) - 2L)
 BKTS <- if (length(args) >= 2 && args[2] != "all") eval(parse(text = args[2])) else sprintf("%02d", 0:99)
+# Buckets held back on purpose (deferred-buckets.csv: the two giant group returns,
+# whose within-org cost is records^2). "all" leaves them out; name one to run it.
+DEFERRED <- fread(file.path(pv_repo, "deferred-buckets.csv"), colClasses = list(character = "bucket"))$bucket
+if (length(args) < 2 || args[2] == "all") {
+  BKTS <- setdiff(BKTS, DEFERRED)
+  stamp("deferred, not linked (see deferred-buckets.csv): %s", paste(DEFERRED, collapse = " "))
+}
 PROFILES <- length(args) >= 3 && as.logical(args[3])
 
 pv_bkt  <- file.path(pv_root, "people-by-ein")
@@ -45,6 +57,7 @@ info <- pkg_info()
 fwrite(info, file.path(pv_root, "build-info-link.csv"))
 print(info)
 
+interrupted <- ledger_recover(pv_run, "link", pv_root)
 todo <- BKTS[!file.exists(bkt_out(pv_map, BKTS))]
 stamp("%d of %d buckets to link, %d workers", length(todo), length(BKTS), NW)
 if (!length(todo)) quit(save = "no")
@@ -59,7 +72,7 @@ stamp("cost per bucket max/mean = %.2f; largest org %s records (bucket %s)",
       max(cost$cost) / mean(cost$cost), format(max(cost$max_org), big.mark = ","),
       cost[which.max(max_org), bucket])
 
-link_bucket <- function(b, f_in, f_map, f_prof, f_run, versions, profiles) {
+link_bucket <- function(b, f_in, f_map, f_prof, f_run, versions, profiles, write_atomic) {
   suppressPackageStartupMessages({ library(data.table); library(arrow); library(synthid) })
   t0 <- Sys.time()
   people <- as.data.frame(read_parquet(f_in))
@@ -74,12 +87,10 @@ link_bucket <- function(b, f_in, f_map, f_prof, f_run, versions, profiles) {
     prof <- as.data.table(synthid::build_person_profile(as.data.frame(lk),
               state = "org.state", cbsa = "org.cbsa", ntee = "org.ntee"))
     t_prof <- as.numeric(Sys.time() - t1, units = "secs")
-    dir.create(dirname(f_prof), recursive = TRUE, showWarnings = FALSE)
     # profiles first, so an emp-map file always means the bucket is complete
-    write_parquet(prof, f_prof)
+    write_atomic(prof, f_prof)
   }
-  dir.create(dirname(f_map), recursive = TRUE, showWarnings = FALSE)
-  write_parquet(map, f_map, chunk_size = 100000L)
+  write_atomic(map, f_map, chunk_size = 100000L)
   run <- list(bucket = b, records = nrow(lk), orgs = uniqueN(lk$ein), persons = uniqueN(lk$EMP_ID),
               link_secs = t_link, profile_secs = t_prof, versions = versions, date = Sys.time())
   saveRDS(run, f_run)
@@ -94,12 +105,12 @@ link_bucket <- function(b, f_in, f_map, f_prof, f_run, versions, profiles) {
 # running buckets too.
 MIN_FREE_GB <- 12
 free_gb <- function() ps::ps_system_memory()$avail / 1e9
-log_line <- function(...) cat(format(Sys.time(), "%H:%M:%S"), "|", sprintf(...), "\n",
+log_line <- function(...) cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "|", sprintf(...), "\n",
                               file = file.path(pv_run, "progress.log"), append = TRUE)
-run_one <- function(b, pv_bkt, pv_map, pv_prof, pv_run, versions, link_bucket, profiles) {
+run_one <- function(b, pv_bkt, pv_map, pv_prof, pv_run, versions, link_bucket, profiles, write_atomic) {
   Sys.setenv(OMP_NUM_THREADS = "1"); data.table::setDTthreads(1L)
   f <- function(root) file.path(root, paste0("bucket=", b), "part-0.parquet")
-  link_bucket(b, f(pv_bkt), f(pv_map), f(pv_prof), file.path(pv_run, paste0("bucket=", b, ".rds")), versions, profiles)
+  link_bucket(b, f(pv_bkt), f(pv_map), f(pv_prof), file.path(pv_run, paste0("bucket=", b, ".rds")), versions, profiles, write_atomic)
 }
 
 t0 <- Sys.time()
@@ -111,17 +122,24 @@ while (length(queue) || length(running)) {
     p <- running[[b]]
     if (p$is_alive()) next
     r <- tryCatch(p$get_result(), error = function(e) list(bucket = b, error = conditionMessage(e)))
-    if (is.null(r$error)) log_line("bucket %s done: %d records -> %d persons, link %.1f min", b, r$records, r$persons, r$link_secs / 60)
-    else log_line("bucket %s FAILED: %s", b, r$error)
+    if (is.null(r$error)) {
+      log_line("bucket %s done: %d records -> %d persons, link %.1f min", b, r$records, r$persons, r$link_secs / 60)
+      ledger_append(pv_run, "link", b, "done", p$get_pid(), sprintf("%.1f min", r$link_secs / 60))
+    } else {
+      log_line("bucket %s FAILED: %s", b, r$error)
+      ledger_append(pv_run, "link", b, "failed", p$get_pid(), r$error)
+    }
     res[[b]] <- r
     running[[b]] <- NULL
   }
   while (length(queue) && length(running) < NW && free_gb() > MIN_FREE_GB) {
     b <- queue[1]; queue <- queue[-1]
     running[[b]] <- callr::r_bg(run_one, args = list(b = b, pv_bkt = pv_bkt, pv_map = pv_map, pv_prof = pv_prof,
-                                pv_run = pv_run, versions = info, link_bucket = link_bucket, profiles = PROFILES),
+                                pv_run = pv_run, versions = info, link_bucket = link_bucket, profiles = PROFILES,
+                                write_atomic = write_parquet_atomic),
                                 supervise = TRUE)
     log_line("bucket %s started (%d running, %.0f GB free)", b, length(running), free_gb())
+    ledger_append(pv_run, "link", b, "started", running[[b]]$get_pid())
     Sys.sleep(20)   # let the new process load its bucket before checking memory again
   }
   Sys.sleep(15)

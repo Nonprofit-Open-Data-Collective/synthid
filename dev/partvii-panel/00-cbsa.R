@@ -45,6 +45,7 @@
 # Bulletin 23-01 delineation (NBER mirrors it as CSV).
 
 source("dev/partvii-panel/_panel.R")
+build_step("00-cbsa")   # build-log.csv
 args  <- commandArgs(trailingOnly = TRUE)
 ROUTE <- if (length(args) >= 1) args[1] else "hud"
 stopifnot(ROUTE %in% c("hud", "county"))
@@ -95,6 +96,9 @@ fetch_hud <- function() {
     d
   }), fill = TRUE)
   if (!nrow(out)) stop("00-cbsa.R: HUD returned no rows at all", call. = FALSE)
+  # HUD names the target geography `geoid` (checked 2026-10-26: zip, geoid, city,
+  # state, res_ratio, bus_ratio, oth_ratio, tot_ratio); for type 3 it is the CBSA.
+  if (!"cbsa" %in% names(out) && "geoid" %in% names(out)) setnames(out, "geoid", "cbsa")
 
   miss <- setdiff(c("zip", "cbsa"), names(out))
   if (length(miss)) {

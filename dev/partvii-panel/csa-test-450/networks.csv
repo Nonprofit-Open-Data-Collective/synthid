@@ -1,0 +1,6 @@
+geo,name,orgs,interlockers,ties_1plus,ties_2plus,n1_orgs,n1_ties,n1_largest_component,n1_core_k,n1_core_orgs,n1_core_ties,n3_people,n3_ties,n3_largest_component,n3_mean_degree
+csa450,"Raleigh-Durham-Cary, NC",5555,14916,54571,3860,1805,3860,1406,6,154,1102,14875,265641,14865,35.7
+cbsa39580,"Raleigh-Cary, NC",3355,8281,21882,1890,985,1890,692,5,103,601,8238,137514,8223,33.4
+cbsa20500,"Durham-Chapel Hill, NC",1834,4330,9126,974,549,974,386,3,147,549,4313,49508,4307,23
+cbsa41820,"Sanford, NC",150,179,202,46,30,46,28,1,28,45,175,1576,171,18
+cbsa11360,"Anderson Creek, NC",129,127,99,27,28,27,12,1,12,18,125,860,111,13.8

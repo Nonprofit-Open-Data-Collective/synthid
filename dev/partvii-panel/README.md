@@ -45,7 +45,12 @@ Rules carried over from the development dataset:
 ## Package versions
 
 Recorded at run time in `build-info-classify.csv` and `build-info-people.csv`
-(also on S3). At the start of the build (2026-10-21) every package repo
+(also on S3). `build-log.csv` (also on S3) has one row each time a step starts
+and finishes, giving its build cycle (`build_id`), data version (efile version,
+years, efile cache date), its titleclassifier, peopleparser and synthid as
+`version@commit`, its run time, and the error message for a failed step. A
+step with a "started" row and nothing after it was killed. Build 3
+(`20261026-1614`) was backfilled from the step logs. At the start of the build (2026-10-21) every package repo
 matched its GitHub head:
 
 | Package | Installed from | Notes |

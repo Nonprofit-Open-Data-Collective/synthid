@@ -16,6 +16,7 @@
 #   Rscript dev/partvii-panel/02-people.R
 
 source("dev/partvii-panel/_panel.R")
+build_step("02-people")   # build-log.csv
 suppressPackageStartupMessages(library(peopleparser))
 
 missing <- YEARS[!file.exists(cls_file(YEARS))]

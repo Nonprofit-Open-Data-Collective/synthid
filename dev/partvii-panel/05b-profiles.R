@@ -27,11 +27,15 @@
 # A bucket whose profile already carries the blocking columns is skipped, so the
 # script can be stopped and re-run. A profile written before those columns
 # existed is NOT treated as done: it would silently leave every pass but
-# `surname` unable to fire, so it is rebuilt.
+# `surname` unable to fire, so it is rebuilt. Profiles are written under a
+# temporary name and renamed into place, and starts / finishes / failures go to
+# profile-runs/run-ledger.csv, so a forced restart is recorded and re-queued
+# (write_parquet_atomic() and ledger_recover() in _panel.R).
 #
 #   Rscript dev/partvii-panel/05b-profiles.R [workers] [buckets, e.g. 'c("00","37")' or all]
 
 source("dev/partvii-panel/_panel.R")
+build_step("05b-profiles")   # build-log.csv
 args <- commandArgs(trailingOnly = TRUE)
 NW   <- if (length(args) >= 1) as.integer(args[1]) else max(1L, parallel::detectCores(logical = FALSE) - 2L)
 BKTS <- if (length(args) >= 2 && args[2] != "all") eval(parse(text = args[2])) else sprintf("%02d", 0:99)
@@ -71,6 +75,7 @@ if (length(have_map) < length(BKTS)) {
         length(BKTS) - length(have_map), length(BKTS),
         paste(setdiff(BKTS, have_map), collapse = " "))
 }
+interrupted <- ledger_recover(pv_run, "profile", pv_root)
 current <- vapply(have_map, profile_is_current, logical(1))
 stale <- have_map[file.exists(part(pv_prof, have_map)) & !current]
 if (length(stale)) {
@@ -93,7 +98,7 @@ stamp("%s records over %d buckets; largest %s, smallest %s",
 # Every value this needs is a parameter: callr serializes the function without
 # the parent's global environment, so a reference to PROF_COLS or BLOCK_SETS
 # here would be unresolved in the child.
-profile_bucket <- function(b, f_bkt, f_map, f_prof, f_run, versions, prof_cols, block_sets) {
+profile_bucket <- function(b, f_bkt, f_map, f_prof, f_run, versions, prof_cols, block_sets, write_atomic) {
   suppressPackageStartupMessages({ library(data.table); library(arrow); library(synthid) })
   t0 <- Sys.time()
   ppl <- as.data.table(read_parquet(f_bkt, col_select = prof_cols))
@@ -123,8 +128,7 @@ profile_bucket <- function(b, f_bkt, f_map, f_prof, f_run, versions, prof_cols, 
   # component is an empty set emits no key at all.
   cover <- vapply(block_sets, function(k) mean(lengths(prof[[k]]) > 0L), 0)
 
-  dir.create(dirname(f_prof), recursive = TRUE, showWarnings = FALSE)
-  write_parquet(prof, f_prof)
+  write_atomic(prof, f_prof)
   run <- list(bucket = b, records = nrow(lk), persons = nrow(prof),
               profile_secs = t_prof, coverage = cover, versions = versions, date = Sys.time())
   saveRDS(run, f_run)
@@ -139,15 +143,15 @@ profile_bucket <- function(b, f_bkt, f_map, f_prof, f_run, versions, prof_cols, 
 # running buckets too.
 MIN_FREE_GB <- as.numeric(Sys.getenv("MIN_FREE_GB", "12"))
 free_gb <- function() ps::ps_system_memory()$avail / 1e9
-log_line <- function(...) cat(format(Sys.time(), "%H:%M:%S"), "|", sprintf(...), "\n",
+log_line <- function(...) cat(format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "|", sprintf(...), "\n",
                               file = file.path(pv_run, "progress.log"), append = TRUE)
 run_one <- function(b, pv_bkt, pv_map, pv_prof, pv_run, versions, profile_bucket,
-                    prof_cols, block_sets) {
+                    prof_cols, block_sets, write_atomic) {
   Sys.setenv(OMP_NUM_THREADS = "1"); data.table::setDTthreads(1L)
   f <- function(root) file.path(root, paste0("bucket=", b), "part-0.parquet")
   profile_bucket(b, f(pv_bkt), f(pv_map), f(pv_prof),
                  file.path(pv_run, paste0("bucket=", b, ".rds")), versions,
-                 prof_cols, block_sets)
+                 prof_cols, block_sets, write_atomic)
 }
 
 t0 <- Sys.time()
@@ -162,8 +166,10 @@ while (length(queue) || length(running)) {
     if (is.null(r$error)) {
       log_line("bucket %s done: %d records -> %d persons in %.1f min (state %.3f, cbsa %.3f, ntee %.3f)",
                b, r$records, r$persons, r$profile_secs / 60, r$has_states, r$has_cbsa, r$has_ntee)
+      ledger_append(pv_run, "profile", b, "done", p$get_pid(), sprintf("%.1f min", r$profile_secs / 60))
     } else {
       log_line("bucket %s FAILED: %s", b, r$error)
+      ledger_append(pv_run, "profile", b, "failed", p$get_pid(), r$error)
     }
     res[[b]] <- r
     running[[b]] <- NULL
@@ -173,8 +179,10 @@ while (length(queue) || length(running)) {
     running[[b]] <- callr::r_bg(run_one, args = list(b = b, pv_bkt = pv_bkt, pv_map = pv_map,
                                 pv_prof = pv_prof, pv_run = pv_run, versions = info,
                                 profile_bucket = profile_bucket, prof_cols = PROF_COLS,
-                                block_sets = BLOCK_SETS), supervise = TRUE)
+                                block_sets = BLOCK_SETS, write_atomic = write_parquet_atomic),
+                                supervise = TRUE)
     log_line("bucket %s started (%d running, %.0f GB free)", b, length(running), free_gb())
+    ledger_append(pv_run, "profile", b, "started", running[[b]]$get_pid())
     Sys.sleep(20)   # let the new process load its bucket before checking memory again
   }
   Sys.sleep(15)

@@ -1,0 +1,5 @@
+network,by,orgs,ties,ties_within,random_expectation,assortativity,modularity,communities,nmi_with_communities
+1+ shared board members,CBSA,4664,54571,0.577,0.482,0.183,0.095,46,0.034
+1+ shared board members,MAJ12,3437,24369,0.217,0.18,0.045,0.037,190,0.06
+2+ shared board members,CBSA,1805,3860,0.775,0.485,0.563,0.29,214,0.174
+2+ shared board members,MAJ12,1246,1654,0.306,0.171,0.163,0.135,404,0.258

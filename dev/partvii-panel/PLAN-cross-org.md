@@ -286,3 +286,128 @@ Not written. Design, from the 24 October discussion:
 - County-to-CBSA (OMB Bulletin 23-01, NBER mirror):
   <https://www.nber.org/research/data/census-core-based-statistical-area-cbsa-federal-information-processing-series-fips-county-crosswalk>
 - 2023 delineation background: <https://www.bls.gov/cew/classifications/areas/county-msa-csa-crosswalk.htm>
+
+## Rerun of 2026-10-26 (build 3)
+
+Windows Update restarted the build-2 machine on Fri 2026-10-23 at 23:29.
+`05-status.R`: 98 of 100 emp-maps intact, none truncated. Only buckets 14 and 97
+were killed. Each is held up by one group return (Hadassah, 39,513 records;
+Kappa Kappa Gamma, 17,895), and both had been running ~10 h. Decisions:
+
+- **Re-run step 01** on titleclassifier `91ca48d` (adds F-034, a university
+  president outranks a paid chancellor). The change only touches step 09
+  roles, not `title.standard` or names, so the 98 emp-maps stay valid; the
+  `05b-profiles.R` alignment check confirms that per bucket. Build 2's
+  `classified/`, `people/` and `people-by-ein/` are kept in
+  `SYNTHID_DIR/partvii-v3_1-build2/`, and `people/` there is the
+  `REUSE_NAMES_FROM` input for step 02.
+- **Defer buckets 14 and 97** (`deferred-buckets.csv`). `05-link.R ... all`
+  skips them; name a bucket to run it anyway. A group return is many chapters
+  under one EIN, so within-org linkage is the wrong model for it. Splitting
+  these (e.g. by surname key) is a follow-up.
+- **Batch cross-org by surname key** (step 8), as above, not by CBSA. A CBSA
+  batch holds only the `metro` pass. `strict` and `industry` pairs in one
+  state but different (or no) CBSAs, all of `geo` and `surname`, and every
+  rural profile (no CBSA) would fall outside any batch. CBSA stays a blocking
+  key and an output column, so results can still be summarized by metro.
+- **Restart safety.** `05-link.R` and `05b-profiles.R` write each output under
+  a temporary name and rename it into place, and log every start / finish /
+  failure to `run-ledger.csv`. On restart, buckets killed mid-run are marked
+  `interrupted` and re-queued (`_panel.R`).
+
+## Step 6b — test CBSA vs. CSA as the metro blocking unit (after step 4)
+
+Question: is a metro area (CBSA) or a combined commuting region (CSA) the
+more defensible geography for the metro pass? A CSA should catch board
+interlocks across adjacent metros that cross a state line (e.g. Washington and
+Baltimore), which `metro` (different CBSAs) and `strict` / `industry`
+(different states) cannot see. The cost is bigger blocks, so more
+common-surname blocks go over `max_block_size` and are dropped.
+
+No rebuild is needed: each CBSA belongs to at most one CSA, so the profiles'
+`cbsa` sets map to CSA sets at test time (OMB delineation, 2023 vintage, the
+same vintage as the CBSA crosswalk).
+
+- **Test region:** Washington-Baltimore-Arlington CSA (DC, MD, VA, WV, PA). It
+  has several CBSAs and crosses state lines, so it tests exactly the case CSA
+  is meant for.
+- **Input:** profiles of every person with a CBSA in that CSA.
+- **Arms:** (A) the current ladder; (B) the same ladder plus a
+  `region = c("last", "csa", "ntee")` pass between `metro` and `geo`;
+  (C) `metro` keyed on CSA instead of CBSA.
+- **Compare:** per arm and pass: candidate pairs, dropped blocks, pairs over
+  the threshold, and the pairs found only in B or C. Review a sample of those
+  with `link_review_queue()` to estimate how many are true matches.
+- **Decision:** adopt the CSA pass if the pairs it alone finds hold up in
+  review at about the precision of the `metro` pass, and its dropped blocks
+  stay few. Record the result as a FINDINGS entry.
+
+## Step 6 results (2026-10-27, build 3)
+
+`06-blocks.R` on the whole panel, not one or two buckets: a block's size depends
+on the whole population, and an EIN bucket holds 1% of it. 15.0M persons,
+81.6M person-block keys, 7.5M blocks, `max_block_size` 5,000
+(`blocks-summary.csv`, `blocks-dropped.csv`, `blocks-surname-cost.csv`).
+
+| Pass | Comparisons | Blocks dropped | People with a usable block |
+|---|---|---|---|
+| strict | 1.02B | 0 | 95.0% |
+| metro | 0.32B | 0 | 77.8% |
+| geo | 7.58B | 304 | 82.3% |
+| industry | 5.84B | 65 | 97.3% |
+| surname | 4.84B | 803 (largest S530, 146,927) | 26.7% |
+| all | 19.6B | 1,172 | 99.97% |
+
+- Coverage is not the problem: strict + metro alone reach 95% of persons and
+  drop nothing. `metro` drops no block, so `max_block_size` does not need raising.
+- The loose passes are 93% of the work. On one surname key (R343, 1.7M pairs),
+  the share of scored pairs at or above 7 was strict 2.4%, metro 1.1%, geo 0.26%.
+- The surname pass is mostly dropped, as expected.
+- Surname-key batches balance well: the costliest key (S530) is 1.2% of all
+  comparisons, the top 100 keys 36%.
+
+Two costs for step 8, from the same test:
+
+- **Scoring is slow:** `score_candidate_pairs()` ran at ~1,800 pairs/s per
+  worker. At 16 workers that is ~13 h for strict + metro and ~8 days for all
+  passes. It compares variant sets pair by pair (`expand.grid` per pair), so
+  vectorizing it is the main lever.
+- **Profiles must be regrouped by surname key:** finding one key's 1,833
+  profiles across the 98 EIN-bucket files took 24 min. The runner's first pass
+  should write profiles once into surname-key batches (a profile with k keys
+  in each of its batches).
+
+The first `06-blocks.R` run crashed inside `arrow.dll` (0xc0000005) on the
+81.6M-row join in arrow's query engine. Part 2 now runs in data.table.
+
+## Step 6b results (2026-10-27): one CSA, Raleigh-Durham-Cary (CSA 450)
+
+`06b-csa-test.R 450`: 118,128 people, 5,692 orgs, 5 CBSAs. The widest
+blocking (surname + CSA) was scored once (14.3M pairs, 10 min on 20 workers,
+~1,180 pairs/s/worker); the other blockings are subsets of it. Results in
+`csa-test-450.csv`; every scored pair in `blocks/csa-test/csa=450/pairs.parquet`.
+
+At threshold 7:
+
+| blocking | pairs | edges | interlockers | org ties | mean degree |
+|---|---|---|---|---|---|
+| surname + CBSA + NTEE (current metro) | 1.17M | 17,060 | 6,843 | 6,884 | 2.4 |
+| surname + CBSA | 7.29M | 66,837 | 16,053 | 41,509 | 14.6 |
+| surname + CSA + NTEE | 2.20M | 20,732 | 8,208 | 10,599 | 3.7 |
+| surname + CSA | 14.28M | 89,237 | 17,903 | 69,612 | 24.5 |
+
+- **NTEE blocking loses most matches.** 74% of surname + CBSA edges join people
+  in different NTEE major groups, and they score like same-NTEE edges (median
+  10.1 vs 10.2). Dropping NTEE gives 2.3x the interlockers for 6.2x the pairs.
+- **NTEE "UND" (undefined) is the "U" group** seen in step 6: an undefined code
+  becomes its own block, so these people only meet each other. About a third of
+  sampled cross-NTEE edges have UND on one side.
+- **CSA adds less.** +12% interlockers (17,903 vs 16,053) over CBSA for 2x the
+  pairs; 25% of CSA edges cross a CBSA line.
+- **Org-tie counts are dominated by affiliate families.** The largest clusters
+  are the same ~6 board members on 24-46 related housing entities (L20/L21);
+  clusters over 10 orgs produce 38% of all org ties. Use interlockers, or ties
+  net of these families, as the density measure.
+- **Threshold 7 still admits near-miss surnames** (MENDEZ/MENDOZA 8.2,
+  PHELPS/PHILLIPS 7.2, BLUE/BLAU 8.1) and common full names (MARIE SMITH,
+  JOHN WILSON). Step 7 tuning applies whichever blocking is chosen.

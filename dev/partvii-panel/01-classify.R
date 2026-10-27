@@ -14,6 +14,7 @@
 #   Rscript dev/partvii-panel/01-classify.R [workers] [years, e.g. 2010:2012]
 
 source("dev/partvii-panel/_panel.R")
+build_step("01-classify", new_cycle = TRUE)   # starts a build cycle (build-log.csv)
 suppressPackageStartupMessages(library(titleclassifier))
 args  <- commandArgs(trailingOnly = TRUE)
 NW    <- if (length(args) >= 1) as.integer(args[1]) else max(1L, parallel::detectCores(logical = FALSE) - 2L)

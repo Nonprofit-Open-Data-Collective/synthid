@@ -20,6 +20,7 @@
 #   Rscript dev/partvii-panel/04-bucket.R
 
 source("dev/partvii-panel/_panel.R")
+build_step("04-bucket")   # build-log.csv
 ROW_GROUP <- 100000L
 pv_bkt <- file.path(pv_root, "people-by-ein")
 

@@ -15,6 +15,7 @@
 #   Rscript dev/partvii-panel/03-upload.R   (re-run after 04-bucket.R; sync sends only new files)
 
 source("dev/partvii-panel/_panel.R")
+build_step("03-upload")   # build-log.csv
 files <- c(ppl_file(YEARS), cls_file(YEARS))
 stopifnot(all(file.exists(files)))
 # the EIN-bucket layout (04-bucket.R), when it has been built
