@@ -4,9 +4,15 @@
 \alias{match_to_profiles}
 \title{Match a new wave of people to an existing frozen person set}
 \usage{
-match_to_profiles(wave, existing, weights = default_weights(),
-  threshold = 7, surname_weight = NULL, max_block_size = 5000L,
-  verbose = FALSE)
+match_to_profiles(
+  wave,
+  existing,
+  weights = default_weights(),
+  threshold = 7,
+  surname_weight = NULL,
+  max_block_size = 5000L,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{wave}{Profiles of the internally linked new wave (\code{\link[=build_person_profile]{build_person_profile()}}
@@ -21,7 +27,7 @@ inherit it.}
 \item{threshold}{Minimum score to accept a wave<->existing match (default \code{7},
 tuned on the 2019-2021 panel: post-greedy precision/recall are flat across
 5-8, so the greedy one-to-one -- not the cutoff -- carries the accuracy;
-see \verb{dev/NOTES-match-threshold.md}. Raise toward 12 for near-1.0 precision at
+see \code{dev/NOTES-match-threshold.md}. Raise toward 12 for near-1.0 precision at
 a steep recall cost; lower toward 5 to admit more OCR/nickname variants).}
 
 \item{surname_weight}{Optional precomputed surname-rarity vector; the population
@@ -46,7 +52,7 @@ share an org-year, so they cannot be one person).}
 }
 }
 \description{
-The asymmetric core of incremental linkage (see \verb{dev/PLAN-incremental-waves.md}).
+The asymmetric core of incremental linkage (see \code{dev/PLAN-incremental-waves.md}).
 Given profiles for an already-linked panel (\code{existing}, carrying durable
 \code{EMP_ID}/\code{EMP_ANCHOR}) and profiles for a newly linked wave (\code{wave}, with its
 own provisional wave-local \code{EMP_ID}s from a fresh \code{\link[=link_panel]{link_panel()}} over the wave

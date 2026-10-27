@@ -44,6 +44,17 @@ reference:
   - synthid_report
   - synthid_cols
 
+- title: Batched runs
+  desc: >
+    Link a panel too large for one session: split it into batches of whole
+    organizations, link each in its own R process, and resume after an
+    interruption from the run ledger.
+  contents:
+  - batch_panel
+  - link_panel_batched
+  - batch_status
+  - batch_id
+
 - title: Synthetic identifiers
   desc: >
     Deterministic, reproducible identifiers. PERSON_YEAR_ID links a record back

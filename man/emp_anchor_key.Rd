@@ -4,8 +4,13 @@
 \alias{emp_anchor_key}
 \title{Choose a cluster's stable anchor key}
 \usage{
-emp_anchor_key(year, object_id = NULL, table_id = NULL, row_uid,
-  keyspec = "v1")
+emp_anchor_key(
+  year,
+  object_id = NULL,
+  table_id = NULL,
+  row_uid,
+  keyspec = "v1"
+)
 }
 \arguments{
 \item{year}{Tax years of the cluster's records (coerced to integer).}
