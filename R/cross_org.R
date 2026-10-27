@@ -5,12 +5,25 @@
 #' industry (people move; cross-industry interlocks are the interesting edges) and
 #' surname is never fully dropped.
 #'
+#' Geography is relaxed in two steps, because a state key and a metro area are
+#' not nested. Someone who sits on two boards is usually local or regional, so
+#' geography is the strongest signal available -- but 40-odd metro areas cross a
+#' state line (New York-Newark, Kansas City, Philadelphia-Camden, Washington),
+#' and a `state` key splits each of those in two. The `metro` pass keys on the
+#' CBSA instead, which crosses the line by construction, so a two-state metro
+#' interlock is still caught at a tight pass rather than falling through to
+#' `geo`, whose buckets are far more likely to exceed `max_block_size` in
+#' [candidate_pairs()]. A pair in one state and one metro hits `strict` first;
+#' `metro` is what catches the pair that `strict` cannot see.
+#'
 #' @return A named list; each element is the character vector of key components
 #'   for that pass. Order is precedence (element 1 = tightest).
 #' @export
 blocking_passes <- function() {
   list(
     strict   = c("last", "state", "ntee"), # surname x geography x industry
+    metro    = c("last", "cbsa", "ntee"),  # geography as a metro area, which
+                                           # may span two or three states
     geo      = c("last", "ntee"),          # geography relaxed
     industry = c("last", "state"),         # industry relaxed
     surname  = c("last")                   # both relaxed -- surname only
@@ -21,10 +34,11 @@ blocking_passes <- function() {
 #'
 #' Turns each [build_person_profile()] row into the set of hash buckets it belongs
 #' to -- the stage-1 input for cross-organization linkage. Because a profile keeps
-#' its *variant sets*, it emits the Cartesian product of its surname phonetic keys,
-#' states, and (truncated) NTEE codes for each requested pass, so a person with a
-#' maiden and a married surname, or activity in two states, lands in every
-#' matching bucket instead of a single one.
+#' its *variant sets*, it emits the Cartesian product of its surname phonetic keys
+#' ([surname_blocking_keys()]), states, metro areas and (truncated) NTEE codes for
+#' each requested pass, so a person with a maiden and a married surname, a
+#' compound surname, or activity in two states, lands in every matching bucket
+#' instead of a single one.
 #'
 #' Keys are namespaced by pass, so a `strict` bucket and a `surname` bucket never
 #' collide even when they share a surname key. A pass that needs a component the
@@ -32,13 +46,15 @@ blocking_passes <- function() {
 #' that profile.
 #'
 #' @param profiles Output of [build_person_profile()] (needs `last_name_keys`;
-#'   `states`/`ntee` list-columns for the geography/industry passes).
+#'   `states`/`cbsa`/`ntee` list-columns for the geography/industry passes).
 #' @param passes Character vector naming the passes to emit (see
 #'   [blocking_passes()]); default all four.
 #' @param ntee_digits Number of leading characters of each NTEE code to key on
 #'   (default `1` = major group, e.g. `"B25"` -> `"B"`).
 #' @return A data frame `EMP_ID`, `pass`, `block_key` (one row per bucket a person
-#'   lands in). `block_key` is `"<pass>|<last>[|<state>][|<ntee>]"`.
+#'   lands in). `block_key` is
+#'   `"<pass>|<last>[|<state>][|<cbsa>][|<ntee>]"`, in the component order the
+#'   pass declares.
 #' @examples
 #' \dontrun{
 #' profiles <- build_person_profile(linked, state = "state", ntee = "ntee")
@@ -57,6 +73,7 @@ person_blocking_keys <- function(profiles,
          call. = FALSE)
   }
   has_state <- "states" %in% names(profiles)
+  has_cbsa  <- "cbsa"   %in% names(profiles)
   has_ntee  <- "ntee"   %in% names(profiles)
 
   getset <- function(col, i, trunc = NULL) {
@@ -72,6 +89,7 @@ person_blocking_keys <- function(profiles,
     last  <- getset(profiles$last_name_keys, i)
     if (!length(last)) next
     state <- if (has_state) getset(profiles$states, i) else character(0)
+    cbsa  <- if (has_cbsa)  getset(profiles$cbsa,  i) else character(0)
     ntee  <- if (has_ntee)  getset(profiles$ntee,  i, trunc = ntee_digits) else character(0)
 
     rows <- list()
@@ -80,6 +98,7 @@ person_blocking_keys <- function(profiles,
       ## Build the component grids this pass requires; empty grid -> no keys.
       grids <- list(last = last)
       if ("state" %in% comps) grids$state <- state
+      if ("cbsa"  %in% comps) grids$cbsa  <- cbsa
       if ("ntee"  %in% comps) grids$ntee  <- ntee
       if (any(lengths(grids) == 0L)) next
       g <- expand.grid(grids[comps], stringsAsFactors = FALSE, KEEP.OUT.ATTRS = FALSE)

@@ -1,0 +1,8 @@
+check,records,per_10k_records,note
+two rows in one year: duplicate rows (same name and title),0,0,a repeated or amended filing
+two rows in one year: differing names or titles,0,0,"two people in one record, or one person listed twice"
+"suffix conflict inside a record (JR and SR, II and III)",8,0.6,a parent and child merged
+two established first names inside a record,166,13.1,e.g. DAVID / DANIEL: two people merged
+rows recorded female and male inside a record,505,39.8,"a merge of two people, or a name whose gender is ambiguous"
+surname differs only by a particle or MAC/MC inside a record,55,4.3,parsing drops or splits the particle
+"cross-org matches: identical rare full name, agreeing middle initial",70,5.5,near-certain matches for calibration

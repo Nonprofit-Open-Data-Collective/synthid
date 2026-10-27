@@ -4,18 +4,27 @@
 \alias{compare_last_names}
 \title{Vectorised compound-name comparator}
 \usage{
-compare_last_names(names1, names2)
+compare_last_names(names1, names2, floor = 0.8, rescale = 0.5)
 }
 \arguments{
 \item{names1, names2}{Character vectors of equal length.}
+
+\item{floor, rescale}{As in \code{\link[=compare_two_names]{compare_two_names()}}.}
 }
 \value{
 A numeric vector of similarities in \verb{[0, 1]}.
 }
 \description{
 The comparator object passed to \code{\link[reclin2:compare_pairs]{reclin2::compare_pairs()}} for the surname
-field. Applies \code{\link[=compare_two_names]{compare_two_names()}} pairwise over two equal-length character
-vectors.
+field. Gives the same value as \code{\link[=compare_two_names]{compare_two_names()}} for every pair of two
+equal-length character vectors.
+}
+\details{
+Most surnames are a single token (no space or hyphen). For a pair of single
+tokens the coverage view is the token Jaro-Winkler when it reaches the
+floor and 0 otherwise, so the whole comparison reduces to two vectorised
+\code{\link[stringdist:stringdist]{stringdist::stringdist()}} calls. Pairs where either side is compound go
+through \code{\link[=compare_two_names]{compare_two_names()}} one at a time.
 }
 \examples{
 compare_last_names(c("MCLANE", "SMITH"), c("MC-LANE", "SMYTHE"))

@@ -4,10 +4,19 @@
 \alias{link_incremental}
 \title{Integrate a new wave of data into an already-linked panel}
 \usage{
-link_incremental(existing, new, cols = synthid_cols(),
-  weights = default_weights(), method = c("weighted", "em"),
-  link_threshold = 7, match_threshold = 7, prob_threshold = 0.5,
-  surname_weight = NULL, max_block_size = 5000L, verbose = FALSE)
+link_incremental(
+  existing,
+  new,
+  cols = synthid_cols(),
+  weights = default_weights(),
+  method = c("weighted", "em"),
+  link_threshold = 7,
+  match_threshold = 7,
+  prob_threshold = 0.5,
+  surname_weight = NULL,
+  max_block_size = 5000L,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{existing}{A panel already linked under the anchored scheme: must carry
@@ -28,7 +37,7 @@ no ids yet.}
 
 \item{match_threshold}{Threshold for the wave<->existing match
 (\code{\link[=match_to_profiles]{match_to_profiles()}}); default \code{7}, tuned (see that function and
-\verb{dev/NOTES-match-threshold.md}).}
+\code{dev/NOTES-match-threshold.md}).}
 
 \item{prob_threshold}{Posterior threshold for the wave-internal link when
 \code{method = "em"}.}
@@ -62,7 +71,7 @@ multi-year batch, or a backfill of missing years) to a frozen, already-linked
 panel, \strong{reusing the existing person ids instead of re-minting them}. This is
 the third linkage mode -- distinct from the initial batch build (\code{\link[=link_panel]{link_panel()}},
 all record-pairs within an org) and cross-org interlock (\code{\link[=link_cross_org]{link_cross_org()}},
-profiles across orgs); see \verb{dev/PLAN-incremental-waves.md}.
+profiles across orgs); see \code{dev/PLAN-incremental-waves.md}.
 }
 \details{
 The wave is first linked \strong{internally} (\code{\link[=link_panel]{link_panel()}} over \code{new} alone), so a

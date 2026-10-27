@@ -10,6 +10,7 @@ build_person_profile(
   emp_id = "EMP_ID",
   title = "title.standard",
   state = NULL,
+  cbsa = NULL,
   ntee = NULL,
   overrides = NULL
 )
@@ -28,10 +29,13 @@ build_person_profile(
 role via \code{\link[=classify_title_role]{classify_title_role()}} (default \code{"title.standard"}; skipped if
 absent).}
 
-\item{state, ntee}{Optional column names for organization geography and NTEE
-industry. When present they are carried into the profile as variant sets and
-are available as relaxable blocking dimensions; when \code{NULL} or absent they
-are skipped (join them from the BMF beforehand if you want them).}
+\item{state, cbsa, ntee}{Optional column names for organization geography (a
+state and a metro area) and NTEE industry. When present they are carried
+into the profile as variant sets and are available as relaxable blocking
+dimensions; when \code{NULL} or absent they are skipped (join them from the BMF
+beforehand if you want them). \code{cbsa} serves the \code{metro} pass of
+\code{\link[=blocking_passes]{blocking_passes()}}, which catches an interlock across a metro area that
+spans a state line; a person's set holds every CBSA they ever filed from.}
 
 \item{overrides}{Passed to \code{\link[=classify_title_role]{classify_title_role()}} for title tail cases.}
 }
@@ -44,7 +48,9 @@ list-columns for the variant sets:
 key) is carried through too when the input panel has it, so an
 incremental match can inherit it (\code{\link[=match_to_profiles]{match_to_profiles()}}).}
 \item{\code{last_name}, \code{last_name_variants}, \code{last_name_keys}}{Modal surname;
-the distinct surnames observed; their phonetic (Soundex) blocking keys.}
+the distinct surnames observed; their phonetic (Soundex) blocking keys,
+one per surname and one per component of a compound one
+(\code{\link[=surname_blocking_keys]{surname_blocking_keys()}}).}
 \item{\code{first_name}, \code{first_name_variants}, \code{first_name_roots},
 \code{first_initial}}{Most-complete formal given name; distinct given names;
 their canonical nickname roots (\code{\link[=first_name_roots]{first_name_roots()}}); leading initial.}
@@ -55,7 +61,8 @@ suffixes; modal gender (\code{NA} on tie/unknown).}
 whether the person \emph{ever} held a \code{BOARD} seat.}
 \item{\code{titles}, \code{orgs}, \code{years}}{Distinct standardized titles,
 organization ids, and tax years for the person.}
-\item{\code{states}, \code{ntee}}{Present only when \code{state}/\code{ntee} are supplied.}
+\item{\code{states}, \code{cbsa}, \code{ntee}}{Present only when \code{state}/\code{cbsa}/\code{ntee}
+are supplied.}
 }
 List-columns hold one character vector per person; unnest \code{last_name_keys}
 (with \code{EMP_ID}) to get the long key table for the stage-1 hash join.
@@ -73,8 +80,9 @@ variants (for blocking recall and pairwise scoring).
 \details{
 The profile is the unit compared in the cross-org stage. Stage 1 (candidate
 generation) is a hash/inverted-index lookup on blocking keys rather than a
-materialized within-block cross product: a profile emits one key per surname
-variant (\code{last_name_keys}, phonetic), lands in every matching bucket, and only
+materialized within-block cross product: a profile emits a key per surname
+variant and per component of a compound surname (\code{last_name_keys}, phonetic;
+see \code{\link[=surname_blocking_keys]{surname_blocking_keys()}}), lands in every matching bucket, and only
 profiles sharing a bucket are scored -- so maiden/married/OCR variants are not
 silently dropped, and a common surname never materializes an all-pairs block.
 }

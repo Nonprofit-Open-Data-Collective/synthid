@@ -8,6 +8,7 @@ link_cross_org(
   df,
   cols = synthid_cols(),
   state = NULL,
+  cbsa = NULL,
   ntee = NULL,
   passes = names(blocking_passes()),
   weights = default_weights(),
@@ -21,9 +22,11 @@ link_cross_org(
 
 \item{cols}{Column mapping; see \code{\link[=synthid_cols]{synthid_cols()}}.}
 
-\item{state, ntee}{Optional organization geography / NTEE columns for the tighter
-blocking passes (join from the BMF beforehand). \code{NULL} -> those passes emit
-nothing and linkage falls back to the surname pass.}
+\item{state, cbsa, ntee}{Optional organization geography (state, metro area) /
+NTEE columns for the tighter blocking passes (join from the BMF
+beforehand). \code{NULL} -> those passes emit nothing and linkage falls back to
+the surname pass, whose buckets are then the first to be dropped for
+exceeding \code{max_block_size}.}
 
 \item{passes}{Blocking passes to run; see \code{\link[=blocking_passes]{blocking_passes()}}.}
 

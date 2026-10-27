@@ -1,0 +1,4 @@
+rule,meta_orgs,entities_in_meta,ties_1plus,ties_1plus_inside_meta,share_1plus,ties_2plus,ties_2plus_inside_meta,share_2plus,interlockers,interlockers_only_inside_meta,share_interlockers
+w>=3 & jaccard>=0.5 (used),75,212,59709,1118,0.0187241454387111,5405,1118,0.206845513413506,15896,980,0.0616507297433317
+w>=3 & jaccard>=0.7 (stricter),49,149,59709,1022,0.0171163476192869,5405,1022,0.189084181313599,15896,540,0.0339708102667338
+w>=3 & overlap>=0.6 (looser: most of the smaller board),178,456,59709,1326,0.0222077073807969,5405,1323,0.24477335800185,15896,1849,0.116318570709612

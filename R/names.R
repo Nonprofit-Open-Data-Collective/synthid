@@ -20,6 +20,68 @@ preprocess_name <- function(name) {
   toupper(parts)
 }
 
+## Surname particles. On their own these are not discriminating: a blocking key
+## for DE or VAN would bucket together every surname that carries one, a bucket
+## both enormous and uninformative that candidate_pairs() would drop for
+## exceeding max_block_size. They still reach the whole-string key, which is
+## what matches "VAN DER BERG" to "VANDERBERG".
+.surname_particles <- c(
+  "AL", "BIN", "DA", "DE", "DEL", "DELA", "DELLA", "DER", "DES", "DI", "DO",
+  "DOS", "DU", "EL", "IBN", "LA", "LE", "LO", "MAC", "MC", "SAN", "SANTA",
+  "ST", "STE", "TER", "VAN", "VANDE", "VANDER", "VON", "Y"
+)
+
+#' Phonetic blocking keys for a person's surnames
+#'
+#' The surname side of cross-organization blocking: the keys under which a
+#' person's [build_person_profile()] row is findable. Every pass of
+#' [blocking_passes()] keys on a surname, so two people can only become a
+#' candidate pair if they share one of these.
+#'
+#' Each surname contributes the Soundex of the whole string with separators
+#' removed, **and** the Soundex of each of its components
+#' ([preprocess_name()] splits on spaces and hyphens). The whole-string key
+#' alone would hash `"GARCIA-LOPEZ"` to one code that neither `"GARCIA"` nor
+#' `"LOPEZ"` shares, so the pair would never be generated -- even though
+#' [compare_last_names()] scores it as a match on its coverage view. Component
+#' keys close that gap, in the same spirit as a person's maiden and married
+#' surnames both producing a key.
+#'
+#' A single-token surname's component key *is* its whole-string key, so this
+#' adds keys only for genuinely compound surnames. Particles (`DE`, `VAN`,
+#' `MC`, ...) and tokens shorter than `min_token` letters are left out as
+#' components, being too common to block on.
+#'
+#' @param names Character vector of surnames (a person's distinct surname
+#'   variants). `NA` and empty strings are dropped.
+#' @param particles Tokens not to emit a component key for; defaults to a
+#'   built-in particle list.
+#' @param min_token Shortest component, in letters, that earns its own key.
+#' @return A sorted character vector of distinct Soundex keys; empty if `names`
+#'   holds nothing usable.
+#' @examples
+#' surname_blocking_keys("GARCIA-LOPEZ")        # whole + GARCIA + LOPEZ
+#' surname_blocking_keys("SMITH")               # one key
+#' surname_blocking_keys(c("COHEN", "WEINER"))  # maiden and married
+#' @seealso [build_person_profile()], [person_blocking_keys()],
+#'   [compare_last_names()]
+#' @export
+surname_blocking_keys <- function(names, particles = .surname_particles,
+                                  min_token = 2L) {
+  names <- names[!is.na(names) & nzchar(names)]
+  if (!length(names)) return(character(0))
+  sx <- function(v) {
+    v <- gsub("[^A-Z]", "", toupper(v))
+    v <- v[nzchar(v)]
+    if (!length(v)) return(character(0))
+    p <- suppressWarnings(stringdist::phonetic(v))
+    p[!is.na(p) & nzchar(p)]
+  }
+  tok <- unlist(lapply(names, preprocess_name), use.names = FALSE)
+  tok <- tok[nchar(gsub("[^A-Z]", "", tok)) >= min_token & !(tok %in% particles)]
+  sort(unique(c(sx(names), sx(tok))))
+}
+
 #' Similarity between two (possibly compound) surnames
 #'
 #' Returns the maximum of two views, which together are robust to the two ways a
@@ -92,14 +154,66 @@ compare_two_names <- function(x, y, floor = 0.80, rescale = 0.5) {
 #' Vectorised compound-name comparator
 #'
 #' The comparator object passed to [reclin2::compare_pairs()] for the surname
-#' field. Applies [compare_two_names()] pairwise over two equal-length character
-#' vectors.
+#' field. Gives the same value as [compare_two_names()] for every pair of two
+#' equal-length character vectors.
+#'
+#' Most surnames are a single token (no space or hyphen). For a pair of single
+#' tokens the coverage view is the token Jaro-Winkler when it reaches the
+#' floor and 0 otherwise, so the whole comparison reduces to two vectorised
+#' [stringdist::stringdist()] calls. Pairs where either side is compound go
+#' through [compare_two_names()] one at a time.
 #'
 #' @param names1,names2 Character vectors of equal length.
+#' @param floor,rescale As in [compare_two_names()].
 #' @return A numeric vector of similarities in `[0, 1]`.
 #' @examples
 #' compare_last_names(c("MCLANE", "SMITH"), c("MC-LANE", "SMYTHE"))
 #' @export
-compare_last_names <- function(names1, names2) {
-  purrr::map2_dbl(names1, names2, compare_two_names)
+compare_last_names <- function(names1, names2, floor = 0.80, rescale = 0.5) {
+  n <- length(names1)
+  out <- rep(NA_real_, n)
+  if (n == 0L) return(out)
+  x <- as.character(names1); y <- as.character(names2)
+  xt <- trimws(x); yt <- trimws(y)
+  ## a side with no tokens (NA, empty, only separators) gives NA
+  has_x <- !is.na(x) & grepl("[^ -]", xt)
+  has_y <- !is.na(y) & grepl("[^ -]", yt)
+  single <- has_x & has_y & !grepl("[ -]", xt) & !grepl("[ -]", yt)
+
+  if (any(single)) {
+    a <- toupper(xt[single]); b <- toupper(yt[single])
+    strip <- function(s) gsub("[^A-Z0-9]", "", toupper(s))
+    whole <- 1 - stringdist::stringdist(strip(x[single]), strip(y[single]), method = "jw")
+    tok <- 1 - stringdist::stringdist(a, b, method = "jw")
+    coverage <- ifelse(is.finite(tok) & tok >= floor, tok, 0)
+    val <- pmax(whole, coverage, na.rm = TRUE)
+    out[single] <- pmin(pmax((val - rescale) / (1 - rescale), 0), 1)
+  }
+  multi <- which(has_x & has_y & !single)
+  if (length(multi)) {
+    tx <- lapply(x[multi], preprocess_name)
+    ty <- lapply(y[multi], preprocess_name)
+    nx <- lengths(tx); ny <- lengths(ty)
+    ## One side a single token: the greedy match takes only the best token pair,
+    ## so coverage is the best token Jaro-Winkler when it reaches the floor.
+    one <- pmin(nx, ny) == 1L
+    if (any(one)) {
+      k <- which(one)
+      s <- ifelse(nx[k] == 1L, vapply(tx[k], `[`, "", 1L), vapply(ty[k], `[`, "", 1L))
+      other <- ifelse(nx[k] == 1L, ty[k], tx[k])
+      len <- lengths(other)
+      tok <- 1 - stringdist::stringdist(rep(s, len), unlist(other, use.names = FALSE), method = "jw")
+      grp <- rep(seq_along(k), len)
+      best <- vapply(split(tok, grp), max, 0, USE.NAMES = FALSE)
+      coverage <- ifelse(is.finite(best) & best >= floor, best, 0)
+      strip <- function(v) gsub("[^A-Z0-9]", "", toupper(v))
+      ii <- multi[k]
+      whole <- 1 - stringdist::stringdist(strip(x[ii]), strip(y[ii]), method = "jw")
+      val <- pmax(whole, coverage, na.rm = TRUE)
+      out[ii] <- pmin(pmax((val - rescale) / (1 - rescale), 0), 1)
+    }
+    ## both sides compound: greedy one-to-one matching, one pair at a time
+    for (i in multi[!one]) out[i] <- compare_two_names(x[i], y[i], floor = floor, rescale = rescale)
+  }
+  out
 }

@@ -4,9 +4,18 @@
 \alias{refresh_cross_org}
 \title{Refresh cross-organization interlocks after integrating a new wave}
 \usage{
-refresh_cross_org(merged, prior = NULL, cols = synthid_cols(),
-  state = NULL, ntee = NULL, weights = default_weights(), threshold = 7,
-  max_block_size = 5000L, verbose = FALSE)
+refresh_cross_org(
+  merged,
+  prior = NULL,
+  cols = synthid_cols(),
+  state = NULL,
+  cbsa = NULL,
+  ntee = NULL,
+  weights = default_weights(),
+  threshold = 7,
+  max_block_size = 5000L,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{merged}{The grown, linked panel: \code{existing} with the wave's \code{new_stamped}
@@ -18,8 +27,8 @@ skips the diff.}
 
 \item{cols}{Column mapping; see \code{\link[=synthid_cols]{synthid_cols()}}.}
 
-\item{state, ntee}{Optional geography / industry columns for tighter blocking;
-see \code{\link[=link_cross_org]{link_cross_org()}}.}
+\item{state, cbsa, ntee}{Optional geography / industry columns for tighter
+blocking; see \code{\link[=link_cross_org]{link_cross_org()}}.}
 
 \item{threshold, max_block_size, weights, verbose}{Passed to \code{\link[=link_cross_org]{link_cross_org()}}.}
 }

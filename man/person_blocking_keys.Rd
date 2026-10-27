@@ -12,7 +12,7 @@ person_blocking_keys(
 }
 \arguments{
 \item{profiles}{Output of \code{\link[=build_person_profile]{build_person_profile()}} (needs \code{last_name_keys};
-\code{states}/\code{ntee} list-columns for the geography/industry passes).}
+\code{states}/\code{cbsa}/\code{ntee} list-columns for the geography/industry passes).}
 
 \item{passes}{Character vector naming the passes to emit (see
 \code{\link[=blocking_passes]{blocking_passes()}}); default all four.}
@@ -22,15 +22,18 @@ person_blocking_keys(
 }
 \value{
 A data frame \code{EMP_ID}, \code{pass}, \code{block_key} (one row per bucket a person
-lands in). \code{block_key} is \code{"<pass>|<last>[|<state>][|<ntee>]"}.
+lands in). \code{block_key} is
+\code{"<pass>|<last>[|<state>][|<cbsa>][|<ntee>]"}, in the component order the
+pass declares.
 }
 \description{
 Turns each \code{\link[=build_person_profile]{build_person_profile()}} row into the set of hash buckets it belongs
 to -- the stage-1 input for cross-organization linkage. Because a profile keeps
-its \emph{variant sets}, it emits the Cartesian product of its surname phonetic keys,
-states, and (truncated) NTEE codes for each requested pass, so a person with a
-maiden and a married surname, or activity in two states, lands in every
-matching bucket instead of a single one.
+its \emph{variant sets}, it emits the Cartesian product of its surname phonetic keys
+(\code{\link[=surname_blocking_keys]{surname_blocking_keys()}}), states, metro areas and (truncated) NTEE codes for
+each requested pass, so a person with a maiden and a married surname, a
+compound surname, or activity in two states, lands in every matching bucket
+instead of a single one.
 }
 \details{
 Keys are namespaced by pass, so a \code{strict} bucket and a \code{surname} bucket never

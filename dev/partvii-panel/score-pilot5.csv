@@ -1,0 +1,47 @@
+section,form,metric,value,n
+A,all,records,2873609,
+A,all,persons,756280,
+A,all,compression,0.7368,
+A,all,persons in 2+ years,0.7345,756280
+A,all,median years per multi-year person,4,
+A,990,records,2215409,
+A,990,persons,566122,
+A,990,compression,0.7445,
+A,990,persons in 2+ years,0.7449,566122
+A,990,median years per multi-year person,4,
+A,990EZ,records,658200,
+A,990EZ,persons,232378,
+A,990EZ,compression,0.6469,
+A,990EZ,persons in 2+ years,0.6204,232378
+A,990EZ,median years per multi-year person,3,
+A,all,persons with >1 record in one year,0,
+A,all,orgs,39259,
+B,all,990 filings naming a principal officer,0.8493,189703
+B1,all,principal officer found in Part VII,0.8721,161111
+B2,all,found principal officer is step 09 CEO,0.3827,140508
+B2,all,principal officer is CEO | org.leadership = designated,0.7105,57160
+B2,all,principal officer is CEO | org.leadership = imputed,0.5531,23797
+B2,all,principal officer is CEO | org.leadership = board_governed,0,7374
+B2,all,principal officer is CEO | org.leadership = no_paid,0,52177
+B3,all,same principal officer next year -> same EMP_ID (recall),0.9961,94304
+B3,all,different principal officer next year -> same EMP_ID (false merge),1e-04,14824
+C,all,seats = voting members,0.5346,189703
+C,all,seats within 2 of voting members,0.8515,189703
+C,all,seats median (count - voting members),0,189703
+C,all,trustee_box = voting members,0.5178,189703
+C,all,trustee_box within 2 of voting members,0.7253,189703
+C,all,trustee_box median (count - voting members),0,189703
+D,all,CEO is the same EMP_ID next year,0.9099,101692
+D,990,CEO is the same EMP_ID next year,0.9057,85935
+D,990EZ,CEO is the same EMP_ID next year,0.9327,15757
+E,all,flag_anomalies persons: sequential_homonym_gap,13095,756280
+E,all,flag_anomalies persons: homonym_copresent,4672,756280
+E,all,flag_anomalies persons: intermittent,2481,756280
+E,all,flag_anomalies persons: entity_not_person,937,756280
+E,all,flag_anomalies persons: sequential_homonym_pay,625,756280
+E,all,flag_links persons: nickname_or_spelling,31407,756280
+E,all,flag_links persons: surname_compound,16021,756280
+E,all,flag_links persons: review,13441,756280
+E,all,flag_links persons: order_swap,4071,756280
+E,all,flag_links persons: parser_honorific_glue,240,756280
+E,all,flag_links persons: surname_credential,103,756280
