@@ -61,7 +61,15 @@ named. Column names follow `synthid_cols()`.
 `last_year`, `years` (list), `titles` (list).
 - `person_id` is `XORG_ID` when `xorg` (from `link_cross_org()`/`stamp_xorg()`)
   is given, else `EMP_ID`.
-- `roles` uses `title_role()`; `"ANY"` keeps every seat.
+- `roles` uses `title_role()`; `"ANY"` keeps every seat. Default
+  `c("BOARD", "OFFICER")`, with a `seat_type` column (board / executive) so an
+  executive of one organization sitting on another's board becomes an
+  executive-board tie that analyses can keep or drop. In CSA 450, 18% of
+  cross-org persons mix board and non-board seats (mostly executive directors,
+  CEOs and CFOs); the 06c-06f prototype used board seats only, so it drops
+  those ties. Staff seats stay out of interlock networks (a program director at
+  two organizations is usually a job change); matching still includes everyone,
+  which keeps career-mobility analysis possible.
 
 ### 2. Meta-orgs
 
@@ -198,6 +206,231 @@ organization-level edges and seats with hashed person ids), or simulate a panel
 with the same structure. Do not print individual names in the vignette, even
 though they come from public filings: show organizations, and person ids or
 synthetic names. Add it to the "Articles" menu in `_pkgdown.yml`.
+
+## Linkage reliability: false matches and homonyms
+
+Two kinds of false cross-org link, with different fixes:
+
+- **Variant false positives**: two different names clear the threshold
+  (MENDEZ / MENDOZA, PHELPS / PHILLIPS). The scorer can see these; they are a
+  threshold and weighting problem.
+- **Homonyms**: two different people with the same name. The scorer cannot see
+  these: an identical full name with no middle initial scores ~9-10 whoever it
+  is. They are a base-rate problem, and they hit networks hardest, because a
+  merged homonym looks exactly like a bridge.
+
+### Pilot (06g-name-risk.R, CSA 450, matches at score >= 7)
+
+- 67% of matched pairs are identical full names with no middle initial to
+  confirm them; 28% are name variants (median score 8.6); 4% are confirmed by
+  agreeing middle initials; 0.6% have conflicting middle initials and still
+  pass.
+- Name commonness: lambda = records with that full name expected by chance in
+  the CSA, `n * p(first) * p(last)`. Cross-org board members average 2.5
+  boards for rare names (lambda < 0.01), 3.0 for lambda 0.1-1, 4.6 for lambda
+  1-10, and 21 for the 9 very common names (lambda >= 10). Rare names show the
+  true distribution; the excess for common names estimates homonym merging.
+- 349 of 14,916 cross-org board members (2.3%) are "ambiguous": one identical
+  name, lambda >= 1, no middle-initial confirmation. 2.7% of organization ties
+  (1+ shared members) and 2.5% of 2+ ties rest on them alone.
+- Splitting them back into one person per organization moves most network
+  measures about as much as splitting the same number of other people with the
+  same board counts (ratio 0.7-1.5), except the CBSA E-I index, which moves 15
+  times as much: homonym merges disproportionately create cross-metro ties.
+  Bridge rankings at score 7 were dominated by them (06e).
+
+### How to measure it
+
+1. **Clerical review sample.** Stratify matched pairs by score band (7-8, 8-9,
+   9-10, 10+) x match type (identical name, variant) x name commonness, about
+   50 pairs per cell, two reviewers. Evidence: the two organizations' locations,
+   sectors, years and titles, shared co-members, and web board lists and bios
+   where the seats are current. Gives precision per cell with confidence
+   intervals, weighted up to all pairs. Bios cover only current boards; that
+   is fine for a validation sample.
+2. **Known non-matches from the data.** Two distinct people with the same name
+   in the same organization and year (the within-org linker keeps co-present
+   records apart) are ground-truth homonyms. Their frequency, by name
+   commonness, calibrates the homonym base rate. `flag_anomalies()` already
+   finds co-present homonyms.
+3. **Name-frequency model.** Turn lambda into P(same person | identical name,
+   area). Better denominators than the panel itself: Census surname
+   frequencies, SSA first-name frequencies, and local name counts from public
+   voter files (counts only, not record linkage).
+4. **Excess-boards decomposition.** Model boards per person on name
+   commonness; the rare-name curve is the counterfactual. The excess for common
+   names, summed, estimates the number of false merges.
+5. **Frequency-adjusted Fellegi-Sunter.** `fit_match_model()` with
+   frequency-based u-probabilities for the full name (not just the surname),
+   so an exact match on JOHN SMITH earns less than one on CREIGHTON BLACKWELL.
+
+### How to split identical-name clusters without bios
+
+Borrow from author-name disambiguation, where co-authors play the part of
+co-board members:
+
+- **Co-membership.** Within a common-name cluster, keep two seats together
+  only if their boards share another member, directly or through a short path
+  that does not run through this person. A real person's boards tend to
+  connect; a homonym merge joins unconnected parts.
+- **Context fields.** Same or adjacent county or ZIP, same sector, overlapping
+  or consecutive years, compatible titles and compensation, Schedule R related
+  organizations. Each one is weak; require two or more for an ambiguous name.
+- **Plausibility.** Cap concurrent boards per year; flag clusters whose boards
+  per year far exceed the rare-name distribution.
+- **Hard stops.** Conflicting middle initials or suffixes never merge.
+- **External sources with history.** NC Secretary of State annual reports list
+  nonprofit officers by year (back filings included), and could confirm a
+  sample.
+- **Bounds instead of a single answer.** Report network measures with
+  ambiguous persons merged (upper bound) and split (lower bound), or weight
+  each cross-org link by P(same person).
+
+### Composite names: what pooling within-org variants buys
+
+Profiles already pool everything seen for a within-org person: every surname
+(with a blocking key per surname and per compound component), every first name
+with its nickname roots, middle initials (from initials or full middle names)
+and suffixes; the scorer takes the best match across the sets.
+
+Test (06i-variant-test.R, CSA 450): rebuild each profile from one form (modal
+surname, most formal first name, one initial, one suffix) and rerun blocking
+and scoring. Of 89,237 matches at score >= 7, 98.5% survive; 538 (0.6%) lose
+their shared surname key and 764 (0.9%) fall below 7. Pooling never removed a
+match. The pooled-only matches are mixed:
+
+- **real variants recovered**: typos (KACIE FORCE / FORE), nicknames (BETTIE /
+  BETH), spacing (MARYANN / MARY ANN), married names;
+- **noise imported**: parse errors pooled as surnames (D REID WILSON gives the
+  person a REID surname and matches DAVID E REID); within-org false merges (an
+  EMP_ID holding both DAVID HENDERSON and DAVID JOHNSON matches another David
+  Henderson); loose spellings (SUSAN HOLLEY vs SUSAN HILL); nickname roots that
+  do not meet (JOE/JOSEPH vs JOSH).
+
+Changes to the composite, roughly in order of value:
+
+1. **Attest variants.** Keep a count of filings and years per variant. Block
+   and score on variants seen in 2+ filings, plus patterned changes (a
+   hyphenated or added surname, a nickname of the formal name); give a match
+   that rests only on a once-seen variant a penalty or a review flag.
+2. **Quarantine parse-suspect variants.** A "surname" that appears as the
+   person's middle name in other filings, or a first token that is an
+   initial, does not get a blocking key.
+3. **Flag suspect within-org merges** whose surname variants are unrelated
+   (not compound, not a spelling variant) and keep their variants out of
+   cross-org matching; they are within-org linkage errors.
+4. **Keep full middle names, not only initials.** Agreement on a full middle
+   name is much stronger evidence than on an initial, and disagreement
+   (ANNE vs ALICE) is a real conflict where the initials match.
+5. **Do not impute nicknames into the sets.** `compare_first_names()` already
+   handles nicknames through roots; adding imputed forms would only widen
+   matching. Imputing a middle initial from a middle name is already done.
+
+### False negatives beyond pooling
+
+The variant test only counts matches that pooling rescues. Two more measures:
+
+- **The review's 5-7 band** estimates true matches below the threshold.
+- **A seeded perturbation test.** Take near-certain matches (rare full name,
+  agreeing middle initials, score >= 11), alter one side the way names vary in
+  the filings (drop the initial, use a nickname, a married or hyphenated
+  surname, a one-letter typo, swap first and last), and measure how often
+  blocking and scoring still find the pair. The rates of each kind of
+  variation inside organizations (06h "name variants": 3.9% drop a middle
+  initial; 25% of people who ever show an initial also appear without it; 16%
+  are listed under a nickname; 3.2% change surname) weight the result into an
+  overall miss rate.
+
+### Seeded test results (06j-seeded-test.R, CSA 450, 2,000 seeds)
+
+Seeds: rare identical full names scoring >= 11. Side B rewritten one way at a
+time; recall = still in a shared block and scoring >= 7 (>= 10).
+
+| Change to side B | In a shared block | Recall at 7 | Recall at 10 |
+|---|---|---|---|
+| none (control) | 100% | 100% | 100% |
+| middle initial dropped | 100% | 100% | 94% |
+| different middle initial | 100% | 100% | 62% |
+| nickname (table names only) | 100% | 100% | 100% |
+| first name reduced to initial | 100% | 100% | 4% |
+| typo in first name | 100% | 98% | 22% |
+| typo in surname | 47% | 47% | 29% |
+| typo in surname's first letter | 16% | 16% | 15% |
+| hyphenated married surname | 100% | 100% | 100% |
+| surname replaced (married) | 0% | 0% | 0% |
+| first and last swapped | 0% | 0% | 0% |
+
+Weighted by how often each change appears within organizations, roughly 6%
+of true cross-org pairs are missed, mostly from swapped order, surname
+replacement and surname typos. Rough: the rates are per record, not per pair.
+
+What it shows:
+
+- **Blocking, not scoring, loses surname typos.** The scorer still rates a
+  typo'd surname >= 7 every time, but the phonetic key changes in half the
+  cases (all of them when the first letter changes). Fix: a second blocking
+  key that tolerates a typo, e.g. (unit, first-name root, first two letters
+  of the surname) or a second phonetic code, plus a token-order-free key
+  (both name tokens, sorted) that also catches swapped order.
+- **Score 7 is permissive on initials.** A conflicting middle initial still
+  scores >= 7 every time (median 10.6), and a first name reduced to an
+  initial scores >= 7 every time (median 7.8): J SMITH matches JOHN SMITH.
+  These are false-positive risks; make a middle-initial conflict a strong
+  negative and do not let an initial-only first name clear 7 without other
+  evidence. Part of threshold tuning (step 7).
+- **The nickname table is small** (70 formal names); only 112 of 2,000 seeds
+  had a formal name in it. 16% of records use a nickname form. Extend it with
+  a standard nickname list (about 1,000 names).
+- **Married names that replace the surname cannot be found by name.** Only a
+  separate rule could: same first name and middle initial in the same area,
+  a different surname, and corroboration (shared co-members or the same
+  organization family). Treat it as a known gap until then.
+
+### Name checks and the hard-case library (06k-06m, CSA 450)
+
+**Surname relation check** (06k). Classes: same, particle (VAN, DE, O, ST,
+MAC/MC), compound (incl. a component within spelling distance), spelling (OSA
+distance 1-2, or Jaro-Winkler >= 0.89), different (two surnames each carried by
+25+ people nationally), unrelated. Calibration: it calls 7 of 389 matches
+corroborated by 2+ shared board members "different" (1.8%; several of those,
+e.g. STEWART / SATTERWHITE, look like real different people), and 52% of
+different-family surname pairs sharing a phonetic key. Conservative by design.
+
+- 4.2% of cross-org matches at score 7 (3,776) pair two different established
+  surnames (LISA PIERCE / ELIZABETH PRICE, DAVID ROSSI / DAVID ROSE): a
+  candidate gate.
+- 0.6% have two different established first names; 0.6% conflicting middle
+  initials; 0.1% conflicting generational suffixes (74).
+- Within organizations, 138 records hold two different established surnames
+  (JOHN BASON / JOHN GIBSON): within-org merge errors.
+
+**Record checks** (06m), per 10,000 records: 39.8 mix female and male rows; 13.1
+hold two established first names; 4.3 differ only by a particle; 0.6 hold two
+generational suffixes. No record holds two rows in one filing year (the
+within-org linker's year guard prevents it). Cross-org matches on a first name
+carried by 1-5 records reach score 10 64% of the time vs 47% for common first
+names: first-name rarity is evidence the scorer does not yet weight.
+
+**Surname changes** (06l). Women's count minus what the men's rate predicts:
+about 581 changes among 54,485 women's records (10.7 per 1,000), 424 of them
+already joined inside one record by the within-org linker. Successions under a
+generic board title (BOARD MEMBER MARY -> BOARD MEMBER MARY) are as common
+among men as women: coincidence, kept as hard negatives.
+
+**Hard-case library** (`hard-cases/` in the data folder; `_hard_cases.R`,
+`hard_cases_read()`): 9,225 cases in 17 categories with labels
+expected_same / expected_different / likely_same / likely_different /
+uncertain. Ground truth: 581 co-present homonyms, 74 + 8 suffix conflicts,
+382 corroborated surname variants. Reviewer labels from the clerical review
+join on (emp_a, emp_b).
+
+### Impact on network measures
+
+`name_risk()` (see People above) should return P(same person) per cross-org
+person, and the analysis helpers should take a `split = ` argument that splits
+persons below a probability. The vignette should show the matched-removal
+comparison: the change in each measure from splitting ambiguous persons,
+against splitting random persons with the same number of boards.
 
 ## Open questions
 
