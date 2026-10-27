@@ -1,0 +1,4 @@
+group,organizations,median_board,mean_entities,statewide_name,triangle_regional_name,chamber_business,university,unknown_ntee,human_services,education,health,public_benefit,arts
+Cross-metro spanners,577,42,1.04,31.5,4.7,6.4,6.8,31.7,16.6,15.6,10.2,14.6,4.7
+Tied only within its metro,1106,22,1.08,22.1,2.6,4.1,2.4,30.7,21.8,14.9,5.8,13.8,6.3
+No 2+ ties,3506,7,1.01,14.8,2.2,2,1.1,21,24,12.7,8.6,11,6.2
