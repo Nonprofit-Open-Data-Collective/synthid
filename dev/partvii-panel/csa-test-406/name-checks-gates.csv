@@ -1,0 +1,8 @@
+relation,N,gate,share_of_matches
+none,41074,generational suffix,0.9026
+one side only,2660,generational suffix,0.0585
+agree,1525,generational suffix,0.0335
+conflict,247,generational suffix,0.0054
+missing,41229,middle initial,0.906
+agree,4085,middle initial,0.0898
+conflict,192,middle initial,0.0042

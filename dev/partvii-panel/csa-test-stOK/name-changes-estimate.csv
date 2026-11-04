@@ -1,0 +1,6 @@
+type,strength,female,male,expected_by_chance,estimated_changes
+one record (already joined),joined,31,28,21.2,10
+two records,distinctive title,10,5,3.8,6
+two records,generic title,33,31,23.4,10
+two records,strong,6,1,0.8,5
+two records,title changed,21,29,21.9,0

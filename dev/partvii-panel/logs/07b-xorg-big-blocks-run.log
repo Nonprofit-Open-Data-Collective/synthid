@@ -1,0 +1,5 @@
+17:52:39 | build 20261026-1614, step 07b-xorg-big-blocks: titleclassifier 0.0.0.9000@91ca48d, peopleparser 0.0.0.9000@cb01547, synthid 0.1.0@7ef7afd 
+17:52:39 | 18 skipped blocks, 111,424 people, 355,356,710 comparisons before removing same-org pairs 
+17:53:19 | 719 chunks over 18 blocks; 717 to run on 20 workers 
+22:29:39 | 354,268,291 pairs scored, 3,187,697 kept, 91.0 worker-hours 
+22:32:09 | merged: 45,379,788 pairs before, 3,193,525 from the big blocks, 48,556,072 after (each pair once) 

@@ -1,0 +1,20 @@
+check,relation,N
+within-org worst surname relation,spelling,8237
+within-org worst surname relation,compound,7504
+within-org worst surname relation,different,532
+within-org worst surname relation,unrelated,371
+within-org worst surname relation,same,296
+within-org worst surname relation,particle,140
+cross-org surname relation (surnames differ),spelling,67462
+cross-org surname relation (surnames differ),different,51769
+cross-org surname relation (surnames differ),compound,35718
+cross-org surname relation (surnames differ),unrelated,16106
+cross-org surname relation (surnames differ),particle,896
+cross-org surname relation (surnames differ),same,537
+cross-org first-name relation,same,457045
+cross-org first-name relation,nickname,85384
+cross-org first-name relation,spelling,19302
+cross-org first-name relation,different,5430
+cross-org first-name relation,unrelated,573
+cross-org first-name relation,initial,530
+cross-org first-name relation,missing,244

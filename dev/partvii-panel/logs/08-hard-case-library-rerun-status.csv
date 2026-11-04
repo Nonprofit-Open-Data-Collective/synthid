@@ -1,0 +1,13 @@
+unit,step,ok,minutes
+408,06m-record-checks,TRUE,22.6
+408,06l-name-changes,TRUE,10
+408,06k-name-checks,TRUE,1240.7
+408,06i-variant-test,TRUE,810.8
+488,06m-record-checks,TRUE,8.2
+488,06l-name-changes,TRUE,3.8
+488,06k-name-checks,TRUE,180.2
+488,06i-variant-test,TRUE,118.3
+348,06m-record-checks,TRUE,11.2
+348,06l-name-changes,TRUE,4.9
+348,06k-name-checks,TRUE,362.7
+348,06i-variant-test,TRUE,286.6

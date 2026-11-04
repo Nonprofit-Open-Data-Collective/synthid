@@ -1,0 +1,16 @@
+type,strength,gender,N,per_10k_records
+one record (already joined),joined,female,2416,164.1
+one record (already joined),joined,male,1845,95
+one record (already joined),joined,unknown,317,100.8
+two records,distinctive title,female,250,17
+two records,distinctive title,male,87,4.5
+two records,distinctive title,unknown,19,6
+two records,generic title,female,719,48.9
+two records,generic title,male,842,43.4
+two records,generic title,unknown,61,19.4
+two records,strong,female,127,8.6
+two records,strong,male,140,7.2
+two records,strong,unknown,13,4.1
+two records,title changed,female,867,58.9
+two records,title changed,male,1486,76.5
+two records,title changed,unknown,39,12.4

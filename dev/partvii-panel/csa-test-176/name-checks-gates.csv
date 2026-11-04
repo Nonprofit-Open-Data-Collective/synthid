@@ -1,0 +1,9 @@
+relation,N,gate,share_of_matches
+none,548162,generational suffix,0.9642
+one side only,16434,generational suffix,0.0289
+agree,3632,generational suffix,0.0064
+conflict,274,generational suffix,5e-04
+JR vs II (compatible),6,generational suffix,0
+missing,521169,middle initial,0.9167
+agree,39967,middle initial,0.0703
+conflict,7372,middle initial,0.013

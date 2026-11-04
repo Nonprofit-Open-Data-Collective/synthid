@@ -1,0 +1,5 @@
+outcome,pairs,share
+kept,2982,0.9933
+lost: no shared surname key (blocking),6,0.002
+lost: score falls below 7,14,0.0047
+"gained with single forms (pooled < 7, single >= 7)",0,

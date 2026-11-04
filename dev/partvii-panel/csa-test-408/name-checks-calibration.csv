@@ -1,0 +1,7 @@
+K,set,compound,different,particle,same,spelling,unrelated
+10,"negative: different surnames, same phonetic key",0.032,0.564,0.001,0.001,0.136,0.266
+10,trusted matches (2+ shared members),0.623,0.02,0.015,0.052,0.282,0.008
+25,"negative: different surnames, same phonetic key",0.032,0.438,0.001,0.001,0.136,0.392
+25,trusted matches (2+ shared members),0.623,0.018,0.015,0.052,0.282,0.01
+100,"negative: different surnames, same phonetic key",0.032,0.265,0.001,0.001,0.136,0.565
+100,trusted matches (2+ shared members),0.623,0.013,0.015,0.052,0.282,0.015

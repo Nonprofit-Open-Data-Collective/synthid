@@ -1,0 +1,5 @@
+multi_surname,multi_first,multi_middle,pairs
+TRUE,FALSE,FALSE,75
+FALSE,TRUE,FALSE,61
+TRUE,TRUE,FALSE,26
+TRUE,FALSE,TRUE,1

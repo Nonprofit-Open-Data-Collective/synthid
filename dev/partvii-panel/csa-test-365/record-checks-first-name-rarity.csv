@@ -1,0 +1,4 @@
+first_name_rarity,matches,median_score,share_score_10
+1-5 records,549,10.29,0.581
+6-25,2548,10.42,0.674
+26-200,4708,10.18,0.576
