@@ -115,7 +115,7 @@ kept, with the flag recorded in the table:
 
 | File | Pairs | |
 |---|---|---|
-| `first-name-variants.csv` | 1,007 | the table: 399 nickname, 556 spelling, 32 cognate, 20 compound; 95% of the people behind the frequent pairs |
+| `first-name-variants.csv` | 24,972 | the table. The 1,007 rows in the matching lexicon are 399 nickname, 556 spelling, 32 cognate and 20 compound pairs, covering 95% of the people behind the frequent pairs. The other 23,965 rows are sound-alike and misspelling pairs, kept outside the lexicon (below). |
 | `first-name-variants-questionable.csv` | 83 | likely different names or genders |
 | `first-name-variants-errors.csv` | 187 | 179 typos, 8 parse errors |
 
@@ -158,17 +158,61 @@ is to being added:
 | hold: needs review | 26,968 | no rule or table support |
 | excluded: rule | 21,309 | typo, parse error or questionable |
 
-A sound-alike scan of the candidates (`first-name-sound-alikes.csv`) found
-23,965 pairs whose spellings sound the same. Soundex alone would accept
-30,554, but it also groups different names such as DAN/DON and TIM/TOM. The
-stricter key normalizes spelling to sound (PH=F, C=K or S, Y=I, silent H,
-doubled letters), keeps the first vowel exactly, and drops later vowels.
-About 10,000 of the matches are misspellings that sound right. These suit a
-phonetic blocking key better than the variant table.
+A sound-alike scan of the candidates found 23,965 pairs whose spellings sound
+the same. Soundex alone would accept 30,554, but it also groups different
+names such as DAN/DON and TIM/TOM. The stricter key normalizes spelling to
+sound (PH=F, C=K or S, Y=I, silent H, doubled letters), keeps the first vowel
+exactly, and drops later vowels.
+
+These pairs are in the table under two types, outside the matching lexicon:
+
+- **sound_alike** (13,748): both forms are established names (KRISTY/KRISTIE).
+  These are the ones that could join the lexicon after review.
+- **misspelling** (10,217): one form is rare, so it is a record error that
+  happens to sound right (TODD/TOOD).
+
+Matching treats the two the same, since both are spelling noise. The label
+records the cause. Sounding alike does not make two forms one name, though:
+JEREMY/JEREMIAH and ALEXA/ALEXIS both pass the key.
+
+## The lexicon and fuzzy coverage
+
+The `lexicon` column marks the rows a comparator should load: TRUE for the
+reviewed nickname, spelling, compound and cognate pairs, FALSE for the
+sound-alike and misspelling rows.
+
+Many pairs do not need listing, because the fuzzy part of
+`compare_first_names()` already scores them as a match. The table records
+that score for every row:
+
+- **`fuzzy_sim`**: what the comparator gives without its nickname lookup.
+  That is Jaro-Winkler rescaled so unrelated names score near 0, raised to 0.5
+  when Soundex agrees. The comparator is symmetric, so the score for A
+  against B is the same as for B against A, and one column covers both
+  directions.
+- **`fuzzy_points`**: what that score adds to a match score,
+  `5 * (2 * fuzzy_sim - 1)`.
+- **`fuzzy_covered`**: TRUE when `fuzzy_sim` is at least 0.8, worth +3
+  points or more. A listed pair scores 0.95 (+4.5), so listing a covered pair
+  gains at most 1.5 points.
+
+| Type | In lexicon | Pairs | Fuzzy covered | Penalized |
+|---|---|---|---|---|
+| nickname | yes | 399 | 8.5% | 83 |
+| spelling | yes | 556 | 63% | 0 |
+| cognate | yes | 32 | 41% | 0 |
+| compound | yes | 20 | 0% | 0 |
+| sound_alike | no | 13,748 | 72% | 10 |
+| misspelling | no | 10,217 | 75% | 3 |
+
+The lexicon holds what string distance cannot see: 609 of its 1,007 pairs
+are not covered, almost all of them nicknames. Without the table, BOB/ROBERT
+scores 0 and costs 5 points. Most rows outside the lexicon are already
+covered, which is why they can stay out of it.
 
 ## Variant chains
 
-Each pair links two names, so the table forms a network. A **chain** is a
+Each lexicon pair links two names, so the lexicon forms a network. A **chain** is a
 set of names connected through one or more pairs. The table's 1,007 pairs
 connect 1,166 names into 323 chains. Most chains are a single pair or a
 small family of forms. 15 chains have ten or more names.
@@ -177,7 +221,7 @@ small family of forms. 15 chains have ten or more names.
 knitr::include_graphics("figures/name-chains-sizes.png")
 ```
 
-Each row of the table records its chain: `chain_id` (1 is the largest),
+Each lexicon row of the table records its chain: `chain_id` (1 is the largest),
 `chain_names`, `chain_pairs`, and `chain_unlinked`. `chain_unlinked` counts
 the pairs of names in the chain that are *not* themselves listed pairs. These
 are the matches a rule would add if it followed links from pair to pair.
@@ -193,12 +237,18 @@ CATHERINE, and MEG joins MARGARET to MEGAN.
 
 So the table stores pairs, and a comparator tests each pair directly. It
 does not map each name to one canonical form either, because KATE, AL, PAT
-and RICKY each have more than one formal name. `nickname_table()` already
-works this way. Two names match when they share a formal root, and two
-formal names never match each other through a shared nickname. Cognates add
+and RICKY each have more than one formal name. `compare_first_names()` already
+works this way: it matches only a direct pair, a formal name and one of its
+listed nicknames (ROBERT/BOB). Two nicknames of the same name (LISA and BETH,
+both from ELIZABETH) do not match, because a person usually goes by one of
+them, and treating them as the same name would merge two people. Cognates add
 one more layer: RICKY/RICHARD and RICKY/RICARDO are both nicknames, while
 RICARDO/RICHARD is a cognate. That is true for some people (an anglicized
 name) and not for others, so it is weighted less.
+
+(The classification above is looser on purpose. It counts a pair as listed
+in a public table when the two names share a formal name, as a record of where
+the pair came from. That is not how the comparator matches.)
 
 ### The five largest chains
 
@@ -234,5 +284,6 @@ data come from the national build in `SYNTHID_DIR`.
 | `03-review-first-pass.R` | the first-pass review calls and error rates |
 | `04-sound-alikes.R` | sound-alike spellings among the candidates |
 | `05-chains.R` | chains, the chain columns, and the figures in this article |
+| `06-lexicon.R` | adds the sound-alike rows, the `lexicon` column and the fuzzy-coverage columns |
 
 The public tables are copied in `dev/name-variants/reference/`.

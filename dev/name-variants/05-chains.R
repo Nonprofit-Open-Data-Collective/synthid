@@ -20,6 +20,10 @@ suppressMessages({library(data.table); library(igraph); library(ggraph); library
 f <- "dev/name-variants/first-name-variants.csv"
 t <- fread(f)
 t[, intersect(names(t), c("chain_id", "chain_names", "chain_pairs", "chain_unlinked")) := NULL]
+# chains are built from the matching lexicon only; rows outside it (added by
+# 06-lexicon.R) keep empty chain columns
+rest <- if ("lexicon" %in% names(t)) t[lexicon == FALSE] else t[0]
+if ("lexicon" %in% names(t)) t <- t[lexicon == TRUE]
 
 g <- graph_from_data_frame(t[, .(name_short, name_long, type, n_emp_ids)], directed = FALSE)
 cmp <- components(g)
@@ -40,7 +44,7 @@ ch <- rbindlist(lapply(seq_along(ord), function(k) {
 t[, chain_id := V(g)$chain[match(name_short, V(g)$name)]]
 t <- ch[, .(chain_id, chain_names, chain_pairs, chain_unlinked)][t, on = "chain_id"]
 setcolorder(t, setdiff(names(t), c("chain_id", "chain_names", "chain_pairs", "chain_unlinked")))
-fwrite(t[order(-n_emp_ids)], f)
+fwrite(rbind(t[order(-n_emp_ids)], rest, fill = TRUE)[, names(t), with = FALSE], f)
 fwrite(ch, "dev/name-variants/first-name-variant-chains.csv")
 
 cat("Names:", vcount(g), " pairs:", ecount(g), " chains:", nrow(ch), "\n")

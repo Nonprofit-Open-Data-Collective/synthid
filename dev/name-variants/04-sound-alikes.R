@@ -9,7 +9,8 @@
 # pass; DAN/DON and JAN/JEN do not.
 #
 # Reads  SYNTHID_DIR/partvii-v3_1/name-variants/first-name-variants-candidates.csv
-# Writes dev/name-variants/first-name-sound-alikes.csv
+# Writes SYNTHID_DIR/partvii-v3_1/name-variants/first-name-sound-alikes.csv;
+#        06-lexicon.R adds these pairs to the variant table (outside the lexicon)
 suppressMessages({library(data.table); library(stringdist)})
 ev <- file.path(Sys.getenv("SYNTHID_DIR", "C:/Users/jlecy/Documents/SYNTHID"), "partvii-v3_1", "name-variants")
 c <- fread(file.path(ev, "first-name-variants-candidates.csv"))
@@ -48,7 +49,7 @@ out[, kind := fcase(gate == "excluded: rule" & type == "typo", "misspelling that
                     default = "sound-alike spelling")]
 fwrite(out[, .(name_short, name_long, sound_key = key_long, n_emp_ids, type, gate, kind, flags,
                n_filings_together, freq_short, freq_long)],
-       "dev/name-variants/first-name-sound-alikes.csv")
+       file.path(ev, "first-name-sound-alikes.csv"))
 
 cat("Under-25 alphabetic pairs (short form 3+ letters):", nrow(c), "\n")
 cat("  Soundex agrees:", sum(c$soundex_same), "\n")

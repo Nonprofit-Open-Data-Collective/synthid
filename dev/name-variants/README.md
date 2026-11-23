@@ -23,10 +23,11 @@ readers; this file is the working record.
 | `02-classify.R` | types each pair (rules plus the hand review of the 25+ pairs, as lists in the script), checks it against the public tables, writes the files below and the review sample | this folder; candidates to `SYNTHID_DIR/.../name-variants/` |
 | `03-review-first-pass.R` | first-pass review calls on `review-sample.csv` and error rates by stratum | `review-sample.csv` |
 | `04-sound-alikes.R` | sound-alike spellings among the under-25 candidates | `first-name-sound-alikes.csv` |
-| `05-chains.R` | chains (connected components) and chain columns; vignette figures | chain columns in `first-name-variants.csv`, `first-name-variant-chains.csv`, `vignettes/figures/name-chains-*.png` |
+| `05-chains.R` | chains (connected components) of the lexicon rows and chain columns; vignette figures | chain columns in `first-name-variants.csv`, `first-name-variant-chains.csv`, `vignettes/figures/name-chains-*.png` |
+| `06-lexicon.R` | adds the sound-alike pairs to the table (outside the lexicon); `lexicon` and fuzzy-coverage columns | `first-name-variants.csv` |
 
-All run from the package root, in order (rerun 05 after 02, since 02 rewrites
-the table). The public tables are copied in `reference/`:
+All run from the package root, in order. 02 rewrites the table from scratch,
+so rerun 05 and 06 after it. 05 and 06 can each be rerun on their own. The public tables are copied in `reference/`:
 `carltonnorthern.csv` (github.com/carltonnorthern/nicknames, Apache-2.0) and
 `onyxrev.csv` (github.com/onyxrev/common_nickname_csv); 02 reads them from
 there unless `NICKNAME_TABLES_DIR` is set.
@@ -53,11 +54,10 @@ would accept all of them.
 
 | File | Pairs | What |
 |---|---|---|
-| `first-name-variants.csv` | 1,007 | the draft table: 25+ pairs of the four kept types, 95% of 25+ EMP_ID rows |
+| `first-name-variants.csv` | 24,972 | the draft table: 1,007 lexicon pairs (25+ pairs of the four kept types, 95% of 25+ EMP_ID rows) and 23,965 sound-alike and misspelling pairs outside the lexicon |
 | `first-name-variants-questionable.csv` | 83 | hand review: likely different names or genders |
 | `first-name-variants-errors.csv` | 187 | typos (179) and parse errors (8) |
 | `review-sample.csv` | 212 | stratified sample for the error-rate check, with first-pass calls |
-| `first-name-sound-alikes.csv` | 23,965 | under-25 pairs whose spellings sound alike (strict key) |
 | `first-name-variant-chains.csv` | 323 | one row per chain: size, pairs, unlinked pairs, diameter, hub |
 | `SYNTHID_DIR/.../first-name-variants-candidates.csv` | 52,467 | pairs under 25, with a verification gate |
 
@@ -132,15 +132,49 @@ spelling to sound (PH=F, V=F, C=K or S, Y=I, silent H, doubled letters, final
 | sound-alike with a red flag | 1,173 | 2,894 | 504 |
 | already promote-ready | 769 | 7,553 | 733 |
 
-This list fits a phonetic blocking or fuzzy key better than the variant
-table. Sounding alike does not make two forms the same name: JEREMY/JEREMIAH,
+These pairs are in the variant table with `lexicon = FALSE`, as type
+`sound_alike` (both forms established names, 13,748) or `misspelling` (one
+form rare, the typo rule; 10,217). The full scan output, with the sound key,
+is in `SYNTHID_DIR/.../name-variants/first-name-sound-alikes.csv`. Matching
+treats the two types the same (both are spelling noise); the label records
+the cause. Only `sound_alike` pairs are candidates for the lexicon later. Sounding alike does not make two forms the same name: JEREMY/JEREMIAH,
 ALEXA/ALEXIS and BRAD/BRADY pass the key. The strict key also misses some real
 pairs that Soundex catches, such as clipped forms (CHRISTIE/CHRISTINA) and
 transpositions (BIRAN/BRIAN).
 
+## Lexicon and fuzzy coverage
+
+`lexicon` marks the rows a comparator built from the table should load: TRUE
+for nickname, spelling, compound and cognate (the reviewed 25+ pairs), FALSE
+for sound_alike and misspelling. `source` says where a row came from.
+
+`fuzzy_sim` is what `compare_first_names()` gives a pair without its nickname
+lookup: Jaro-Winkler rescaled by `(jw - 0.5) / 0.5`, raised to 0.5 when Soundex
+agrees. The comparator is symmetric (the score for A against B equals B
+against A, checked on every pair), so one column covers both directions.
+`fuzzy_points = 5 * (2 * fuzzy_sim - 1)` is what the score adds to a match
+(first-name weight 5). `fuzzy_covered` is `fuzzy_sim >= 0.8`, i.e. +3 points
+or more; a listed pair scores 0.95 (+4.5), so listing a covered pair gains at
+most 1.5 points.
+
+| Type | Lexicon | Pairs | Fuzzy covered | Penalized (sim < 0.5) | Median sim |
+|---|---|---|---|---|---|
+| nickname | yes | 399 | 34 (8.5%) | 83 | 0.64 |
+| spelling | yes | 556 | 351 (63%) | 0 | 0.86 |
+| cognate | yes | 32 | 13 (41%) | 0 | 0.74 |
+| compound | yes | 20 | 0 | 0 | 0.67 |
+| sound_alike | no | 13,748 | 9,923 (72%) | 10 | 0.87 |
+| misspelling | no | 10,217 | 7,679 (75%) | 3 | 0.87 |
+
+The lexicon is what the fuzzy comparator cannot do: 609 of its 1,007 pairs
+are not covered, almost all nicknames (BOB/ROBERT scores 0, a 5-point penalty).
+The rows outside the lexicon are mostly covered already, which is why they
+can stay out of it.
+
 ## Chains
 
-Each pair links two names, so the table forms a network. `05-chains.R` finds
+Each lexicon pair links two names, so the lexicon forms a network (rows outside
+the lexicon have empty chain columns). `05-chains.R` finds
 its connected components ("chains"): 1,007 pairs connect 1,166 names into 323
 chains. 157 chains are a single pair, 106 have 3-4 names, 45 have 5-9 and 15
 have 10+. The largest:
@@ -168,9 +202,14 @@ The table stores pairs, and the comparator should test a pair directly, never
 through chains. If names were merged into clusters (connected components),
 KATHLEEN = KATE = KATHERINE would make KATHLEEN match KATHERINE, and
 RICHARD = RICKY = RICARDO would make two names match through a shared short
-form. `nickname_table()` already avoids this. Two names match when they share
-a formal root, and two formal names never share one. That is why
-KATHLEEN/KATHERINE is in the questionable file.
+form. `compare_first_names()` already avoids this: it matches only a direct
+pair (a formal name and one of its listed nicknames, ROBERT/BOB). Two
+nicknames of one name (LISA and BETH, both from ELIZABETH) do not match. The
+`in_*` columns are looser on purpose: they mark a pair as listed in a public
+table when the two names share a formal name, which records the pair's source
+but is not how the comparator matches. KATHLEEN/KATHERINE is in the
+questionable file because they are two formal names, linked only through
+KATE.
 
 Cognates are a separate type, so the scorer can weight them less.
 RICKY/RICARDO and RICKY/RICHARD are both nicknames. RICARDO/RICHARD is a
