@@ -1,12 +1,9 @@
 pair,type,N
-JOHN/JONATHAN,nickname,616
-MARIE/MARY,cognate,268
 KIM/KIMBERLY,nickname,186
 SUSAN/SUZANNE,spelling,153
 JEFF/JEFFREY,nickname,105
 BILL/WILL,nickname,104
 STEPHEN/STEVEN,spelling,90
-MARIA/MARY,cognate,82
 JIM/JIMMY,nickname,79
 MARC/MARK,spelling,66
 BRIAN/BRYAN,spelling,57
@@ -37,7 +34,6 @@ CAROLINE/CAROLYN,spelling,23
 WILLIAM/WILLY,nickname,22
 BETSY/BETTY,nickname,22
 LAUREN/LAURIE,nickname,22
-JOHN/JOHNATHAN,nickname,22
 KAREN/KARYN,spelling,20
 ANNA/ANNIE,spelling,20
 BRAD/BRADLEY,nickname,20
@@ -67,6 +63,7 @@ PATRICIA/PATTI,nickname,13
 RONNIE/RONNY,spelling,13
 KELLIE/KELLY,spelling,12
 ASHLEIGH/ASHLEY,spelling,12
+JOHNATHAN/JONATHAN,spelling,12
 JESSICA/JESSIE,nickname,12
 ANN/ANNE,spelling,12
 FRANK/FRANKLIN,nickname,12
@@ -75,7 +72,6 @@ ANA/ANN,spelling,11
 LAURIE/LORI,nickname,11
 ANN/ANNA,spelling,11
 LESA/LISA,spelling,11
-JOHNATHAN/JONATHAN,spelling,11
 TANYA/TONYA,spelling,11
 CAROLINE/CARRIE,nickname,10
 CATHERINE/KATHERINE,spelling,10
@@ -161,7 +157,6 @@ JUDI/JUDY,spelling,4
 BETH/BETHANY,nickname,4
 GEOFF/GEOFFREY,nickname,4
 DEB/DEBBIE,nickname,4
-MARIA/MARIE,cognate,4
 SALLIE/SALLY,spelling,4
 TRACEY/TRACY,spelling,4
 STACI/STACY,spelling,4

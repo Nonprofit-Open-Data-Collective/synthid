@@ -24,10 +24,10 @@ pairs are not nicknames. They also include spellings, compound names and
 forms in other languages.
 
 **Status.** The table and the scripts that build it are in
-`dev/name-variants/` in the source repository. Its 1,007 lexicon pairs ship
+`dev/name-variants/` in the source repository. Its 1,002 lexicon pairs ship
 with the package as `first_name_lexicon()`, and `compare_first_names()` uses
 them alongside `nickname_table()`. A listed pair scores 0.95 for a nickname or
-spelling, 0.90 for a compound and 0.85 for a cognate. The 66 pairs flagged
+spelling, 0.90 for a compound and 0.85 for a cognate. The 62 pairs flagged
 `cofiling` (below) are capped at 0.85. To score with `nickname_table()` alone,
 as before the lexicon, set `options(synthid.first_name_lexicon = FALSE)`. To
 remove the co-filing cap, set `options(synthid.first_name_cofiling_sim = NA)`.
@@ -65,7 +65,7 @@ by hand. The rarer pairs are kept as candidates (below).
 | cognate | the same name in another language | JOSE/JOSEPH, RICARDO/RICHARD | table, weighted less |
 | typo | a misspelling of one name | JOSPEH/JOSEPH | errors file |
 | parse error | not a first name | JP/JPMORGAN, WILLIAM/WILLIAMS | errors file |
-| questionable | likely two different names or people | JOHN/JOSH, LISA/LINDA, PAUL/PAULA | questionable file |
+| questionable | likely two different names or people | JOHN/JOSH, LISA/LINDA, PAUL/PAULA, JOHN/JONATHAN | questionable file |
 
 For matching, short forms work like any other nickname: CLINT/CLINTON acts
 like BOB/ROBERT. A rule that treats one name as a short form whenever it is
@@ -105,10 +105,10 @@ JOSPEH to JOSEPH, and a list of misspellings would only ever be partial.
 
 ### What the evidence flags show
 
-Of the pairs kept in the table, 82 carry a flag. They were checked again and
+Of the pairs kept in the table, 78 carry a flag. They were checked again and
 kept, with the flag recorded in the table:
 
-- **Co-filing (66).** These are mostly diminutives that families use to tell
+- **Co-filing (62).** These are mostly diminutives that families use to tell
   relatives apart: JOHN/JOHNNY, JIM/JIMMY, DON/DONNIE (father and son, Sr and
   Jr). They are real variants, but weaker evidence that two records are the
   same person.
@@ -120,11 +120,11 @@ kept, with the flag recorded in the table:
 
 | File | Pairs | |
 |---|---|---|
-| `first-name-variants.csv` | 24,972 | the table. The 1,007 rows in the matching lexicon are 399 nickname, 556 spelling, 32 cognate and 20 compound pairs, covering 95% of the people behind the frequent pairs. The other 23,965 rows are sound-alike and misspelling pairs, kept outside the lexicon (below). |
-| `first-name-variants-questionable.csv` | 83 | likely different names or genders |
+| `first-name-variants.csv` | 24,967 | the table. The 1,002 rows in the matching lexicon are 397 nickname, 556 spelling, 29 cognate and 20 compound pairs, covering 95% of the people behind the frequent pairs. The other 23,965 rows are sound-alike and misspelling pairs, kept outside the lexicon (below). |
+| `first-name-variants-questionable.csv` | 88 | likely different names or genders |
 | `first-name-variants-errors.csv` | 187 | 179 typos, 8 parse errors |
 
-Of the 1,007 pairs, 447 appear in at least one public table. The other 560
+Of the 1,002 pairs, 442 appear in at least one public table. The other 560
 were found only in the data. Most are spellings, but some are nicknames that
 no public list includes: KATE/KATHLEEN, TERRY/TERRENCE, GERRY/GERARD.
 
@@ -149,6 +149,11 @@ check out clean. Most of the doubtful pairs are cognates (MARIA/MARIE,
 JOSE/JOSEPH), which is why cognates are kept as a separate type that can be
 weighted less. The candidates have about twice the error rate of the table,
 so they need review before they are added.
+
+The sample was drawn before five pairs were moved out of the table after the
+match review below (JOHN/JONATHAN, JOHN/JOHNATHAN, MARY/MARIE, MARY/MARIA and
+MARIA/MARIE). Three of the doubtful cognates in the sample are among them, so
+the table's cognates now hold fewer doubtful pairs than the sample shows.
 
 ## Pairs seen in fewer than 25 people
 
@@ -203,14 +208,14 @@ that score for every row:
 
 | Type | In lexicon | Pairs | Fuzzy covered | Penalized |
 |---|---|---|---|---|
-| nickname | yes | 399 | 8.5% | 83 |
+| nickname | yes | 397 | 8.6% | 83 |
 | spelling | yes | 556 | 63% | 0 |
-| cognate | yes | 32 | 41% | 0 |
+| cognate | yes | 29 | 45% | 0 |
 | compound | yes | 20 | 0% | 0 |
 | sound_alike | no | 13,748 | 72% | 10 |
 | misspelling | no | 10,217 | 75% | 3 |
 
-The lexicon holds what string distance cannot see: 609 of its 1,007 pairs
+The lexicon holds what string distance cannot see: 604 of its 1,002 pairs
 are not covered, almost all of them nicknames. Without the table, BOB/ROBERT
 scores 0 and costs 5 points. Most rows outside the lexicon are already
 covered, which is why they can stay out of it.
@@ -218,8 +223,8 @@ covered, which is why they can stay out of it.
 ## Variant chains
 
 Each lexicon pair links two names, so the lexicon forms a network. A **chain** is a
-set of names connected through one or more pairs. The table's 1,007 pairs
-connect 1,166 names into 323 chains. Most chains are a single pair or a
+set of names connected through one or more pairs. The table's 1,002 pairs
+connect 1,164 names into 323 chains. Most chains are a single pair or a
 small family of forms. 15 chains have ten or more names.
 
 ```{r, out.width = "80%"}
@@ -280,65 +285,80 @@ knitr::include_graphics(sprintf("figures/name-chains-%d.png", 1:5))
 
 Three checks on one combined statistical area (CSA 450), each run three ways:
 with `nickname_table()` only (before), with the lexicon at full weight, and
-with the lexicon and the 66 co-filing pairs capped at 0.85, which is the
-package default.
+with the lexicon and the 62 co-filing pairs capped at 0.85, which is the
+package default. All results are for the 1,002-pair lexicon, after the match
+review below.
 
 | | Before | Lexicon, full weight | Lexicon, co-filing capped (default) |
 |---|---|---|---|
-| Matches at score 7+ | 89,237 | 93,246 | 92,893 |
-| Matches at score 10+ | 40,762 | 41,107 | 41,046 |
-| Matches at 7+ with two different established surnames | 3,776 | 4,075 | 3,938 |
-| Middle-initial conflicts among them | 571 | 593 | 579 |
-| Seeded lexicon nicknames found at 10+ | 15.7% | 100% | 97.1% |
-| Seeded lexicon spellings found at 10+ | 52.0% | 100% | 99.3% |
+| Matches at score 7+ | 89,237 | 92,255 | 92,054 |
+| Matches at score 10+ | 40,762 | 41,095 | 41,046 |
+| Matches at 7+ with two different established surnames | 3,776 | 4,020 | 3,931 |
+| Middle-initial conflicts among them | 571 | 581 | 575 |
+| Seeded lexicon nicknames found at 10+ | 15.7% | 100% | 97.8% |
+| Seeded lexicon spellings found at 10+ | 52.0% | 100% | 98.9% |
 
-The cap is the default because of what it removes. It drops 353 of the
-lexicon's new matches at 7, and 340 of those (96%) have differing surnames,
+The cap is the default because of what it removes. It drops 201 of the
+lexicon's matches at 7, and 193 of those (96%) have differing surnames,
 against about 15% of all matches. It keeps every seeded variant at 7. Its cost:
 122 matches that `nickname_table()` alone produced, such as JOHN/JOHNNY pairs,
-fall below 7, and recall at 10 dips by 1 to 3 points. The sections below give
-the full-weight results.
+fall below 7, and recall at 10 dips by 1 to 2 points.
 
 **Seeded recall (06j).** Pairs of rare, identical names that score 11 or more
 are near-certain matches. Rewriting one side's first name shows whether the
-pair is still found:
+pair is still found (before / default):
 
-| Rewrite of one side | Seeds | Score >= 7, before / after | Score >= 10, before / after |
+| Rewrite of one side | Seeds | Score >= 7 | Score >= 10 |
 |---|---|---|---|
-| nickname that only the lexicon lists | 274 | 90.9% / 100% | 15.7% / 100% |
-| spelling variant from the lexicon | 723 | 98.2% / 100% | 52.0% / 100% |
-| a different name (JOHN -> JOSH), lower is better | 252 | 91.7% / 91.7% | 35.3% / 35.3% |
+| nickname that only the lexicon lists | 270 | 90.9% / 100% | 15.7% / 97.8% |
+| spelling variant from the lexicon | 723 | 98.2% / 100% | 52.0% / 98.9% |
+| a different name (JOHN -> JOSH), lower is better | 256 | 91.7% / 89.1% | 35.3% / 31.2% |
 
-Every other rewrite gives the same result with the lexicon on or off. The last
-row checks for false matches, and the lexicon does not change it. It also
-shows a weakness that predates the lexicon: a different first name on
-otherwise identical rare names still scores 7 or more nine times in ten.
+Every other rewrite gives the same result. The last row checks for false
+matches; its seeds now include JOHN -> JONATHAN, which the review moved to the
+questionable list. It also shows a weakness that predates the lexicon: a
+different first name on otherwise identical rare names still scores 7 or more
+about nine times in ten.
 
 **Cross-org matches (06n).** The CSA's 14.3 million candidate pairs were
 rescored. Because the score is additive, the first-name change could be
-applied exactly to the 11,587 pairs it affects. A full rescore of a sample
+applied exactly to the pairs it affects. A full rescore of a sample of 300
 matched to within rounding.
 
-| Threshold | Before | After | Gained | Lost |
+| Threshold | Before | Default | Gained | Lost |
 |---|---|---|---|---|
-| score >= 7 | 89,237 | 93,246 | 4,009 (+4.5%) | 0 |
-| score >= 10 | 40,762 | 41,107 | 345 (+0.8%) | 0 |
+| score >= 7 | 89,237 | 92,054 | 2,939 | 122 |
+| score >= 10 | 40,762 | 41,046 | 308 | 24 |
 
-Of the 4,009 new matches at 7, 2,454 rest on a nickname, 1,105 on a spelling,
-417 on a cognate and 33 on a compound. The most common are JOHN/JONATHAN
-(616), MARIE/MARY (268), KIM/KIMBERLY (186) and SUSAN/SUZANNE (153). Two of
-those carried a warning in the review: JOHN/JONATHAN and MARIE/MARY also
-appear as two people on one return, so their new matches deserve a look.
+Of the 2,939 new matches at 7, 1,738 rest on a nickname, 1,105 on a spelling,
+63 on a cognate and 33 on a compound. The most common are KIM/KIMBERLY (186),
+SUSAN/SUZANNE (153), JEFF/JEFFREY (105) and BILL/WILL (95).
+
+**Match review.** The first lexicon (1,007 pairs) added 616 matches through
+JOHN/JONATHAN and 268 through MARIE/MARY. Both had carried a co-filing warning.
+Read against other new matches, they looked like two different people:
+
+- MARIE/MARY: 268 matches among only 96 people, five of them holding 29% of
+  the match ends. In 88% of them the MARY carried a second given name (MARY
+  ANN, MARY LOU, MARY DEE), 27% had different surnames, and none were backed by
+  shared board members.
+- JOHN/JONATHAN: 23% had different surnames (JOHN CHEN and JONATHAN COHEN),
+  most of the rest common surnames, and 0.2% were backed by shared board
+  members. JOHN and JONATHAN also appear as two people on one return about
+  half as often as they appear as one person.
+
+These pairs, with JOHN/JOHNATHAN, MARY/MARIA and MARIA/MARIE, were moved to
+the questionable file. JON/JONATHAN stays.
 
 **Name checks (06k).** The post-match name checks were rerun on the rescored
 matches. Among matches at 7 or more:
 
-| First-name relation | Before | After |
+| First-name relation | Before | Default |
 |---|---|---|
 | same | 76,026 | 76,026 |
-| nickname | 10,068 | 12,597 |
-| spelling | 2,310 | 3,391 |
-| cognate | 0 | 465 |
+| nickname | 10,068 | 11,756 |
+| spelling | 2,310 | 3,393 |
+| cognate | 0 | 112 |
 | different (two established first names) | 534 | 471 |
 
 The surname check still sorts its calibration sets the same way. It calls
@@ -346,12 +366,11 @@ The surname check still sorts its calibration sets the same way. It calls
 negative pairs.
 
 The new matches are weaker on average than the old ones, as expected for pairs
-that were just below the threshold. 38% of the 4,009 gained matches have
-different best surnames, against 15.5% of the existing matches. 299 of them
-(7.5%) have two different established surnames, against 4.2% before. Middle
-initial conflicts rose by 22. These gained matches, and the flagged pairs
-behind many of them, are where to look first if the lexicon admits false
-matches.
+that were just below the threshold. Matches with differing best surnames rose
+by 959 while all matches rose by 2,817, so about a third of the net gain has
+differing surnames, against 15.5% of the existing matches. Matches with two
+different established surnames rose by 155. These are where to look first if
+the lexicon still admits false matches.
 
 ## Rebuilding the table
 

@@ -18,6 +18,7 @@
 source("dev/partvii-panel/_panel.R")
 build_step("02-people")   # build-log.csv
 suppressPackageStartupMessages(library(peopleparser))
+if (packageVersion("peopleparser") < "0.1.0") stop("peopleparser >= 0.1.0 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
 
 missing <- YEARS[!file.exists(cls_file(YEARS))]
 if (length(missing)) stop("classified years missing: ", paste(missing, collapse = " "))

@@ -42,7 +42,7 @@ there unless `NICKNAME_TABLES_DIR` is set.
 | cognate | the same name in another language | JOSE/JOSEPH, RICARDO/RICHARD | yes |
 | typo | a misspelling of one name; a record error, which the scorer's string distance already handles | JOSPEH/JOSEPH, BRAIN/BRIAN | errors file |
 | parse_error | not a first name | JP/JPMORGAN, WILLIAM/WILLIAMS | errors file |
-| questionable | likely two different names or people | JOHN/JOSH, LISA/LINDA, PAUL/PAULA | questionable file |
+| questionable | likely two different names or people | JOHN/JOSH, LISA/LINDA, PAUL/PAULA, JOHN/JONATHAN | questionable file |
 
 Truncations are nicknames for matching (CLINT/CLINTON works like BOB/ROBERT).
 The "prefix" group in the first pass was not one type: it mixed short forms
@@ -54,8 +54,8 @@ would accept all of them.
 
 | File | Pairs | What |
 |---|---|---|
-| `first-name-variants.csv` | 24,972 | the draft table: 1,007 lexicon pairs (25+ pairs of the four kept types, 95% of 25+ EMP_ID rows) and 23,965 sound-alike and misspelling pairs outside the lexicon |
-| `first-name-variants-questionable.csv` | 83 | hand review: likely different names or genders |
+| `first-name-variants.csv` | 24,967 | the draft table: 1,002 lexicon pairs (25+ pairs of the four kept types, 95% of 25+ EMP_ID rows) and 23,965 sound-alike and misspelling pairs outside the lexicon |
+| `first-name-variants-questionable.csv` | 88 | hand review: likely different names or genders |
 | `first-name-variants-errors.csv` | 187 | typos (179) and parse errors (8) |
 | `review-sample.csv` | 212 | stratified sample for the error-rate check, with first-pass calls |
 | `first-name-variant-chains.csv` | 323 | one row per chain: size, pairs, unlinked pairs, diameter, hub |
@@ -148,18 +148,29 @@ transpositions (BIRAN/BRIAN).
 read by `synthid::first_name_lexicon()`. `compare_first_names()` scores a listed
 pair (lexicon or a direct `nickname_table()` pair) by type: nickname and
 spelling 0.95, compound 0.90, cognate 0.85, or the fuzzy score if higher.
-The 66 lexicon pairs flagged `cofiling` (column in the shipped file) are
+The 62 lexicon pairs flagged `cofiling` (column in the shipped file) are
 capped at 0.85 by default (`options(synthid.first_name_cofiling_sim = NA)`
 removes the cap). `options(synthid.first_name_lexicon = FALSE)` restores the
-old behavior (`nickname_table()` pairs at 0.95). On CSA 450 the cap drops 353
+old behavior (`nickname_table()` pairs at 0.95). On CSA 450 the cap drops 201
 of the lexicon's new matches at score 7, 96% of them with differing surnames,
 and keeps every seeded variant at 7. Result files: `seeded-test.csv` (default),
 `seeded-test-nocap.csv`, `seeded-test-legacy.csv`; `lexicon-cofiling-*`
 (default) and `lexicon-*` (no cap) for 06n and 06k. `nickname_table()` itself and the profile
 `first_name_roots` are unchanged. Effect on CSA 450:
 `dev/partvii-panel/csa-test-450/seeded-test*.csv` (06j, before and after),
-`lexicon-rescore*.csv` (06n) and `name-checks-*-lexicon.csv` (06k); the
-vignette summarizes them.
+`lexicon*-rescore*.csv` (06n) and `name-checks-*-lexicon*.csv` (06k); the
+vignette summarizes them. With the default comparator, matches at score 7 go
+from 89,237 to 92,054 (2,939 gained, 122 lost).
+
+Match review (2026-11-23): the first lexicon (1,007 pairs) added 616 CSA 450
+matches through JOHN/JONATHAN and 268 through MARIE/MARY. Read against other
+new matches they looked like two different people (different surnames, a MARY
+with a second given name, almost no shared board members), so JOHN/JONATHAN,
+JOHN/JOHNATHAN, MARY/MARIE, MARY/MARIA and MARIA/MARIE moved to the
+questionable list in `02-classify.R`. The review sample with names is in
+`SYNTHID_DIR/.../csa=450/review/`, outside the repo. peopleparser's
+`first_name_pairs` copy of this table was refreshed to match (peopleparser
+0.1.0.9000, uncommitted there).
 
 ## Lexicon and fuzzy coverage
 
@@ -178,14 +189,14 @@ most 1.5 points.
 
 | Type | Lexicon | Pairs | Fuzzy covered | Penalized (sim < 0.5) | Median sim |
 |---|---|---|---|---|---|
-| nickname | yes | 399 | 34 (8.5%) | 83 | 0.64 |
+| nickname | yes | 397 | 34 (8.6%) | 83 | 0.64 |
 | spelling | yes | 556 | 351 (63%) | 0 | 0.86 |
-| cognate | yes | 32 | 13 (41%) | 0 | 0.74 |
+| cognate | yes | 29 | 13 (45%) | 0 | 0.78 |
 | compound | yes | 20 | 0 | 0 | 0.67 |
 | sound_alike | no | 13,748 | 9,923 (72%) | 10 | 0.87 |
 | misspelling | no | 10,217 | 7,679 (75%) | 3 | 0.87 |
 
-The lexicon is what the fuzzy comparator cannot do: 609 of its 1,007 pairs
+The lexicon is what the fuzzy comparator cannot do: 604 of its 1,002 pairs
 are not covered, almost all nicknames (BOB/ROBERT scores 0, a 5-point penalty).
 The rows outside the lexicon are mostly covered already, which is why they
 can stay out of it.
@@ -194,7 +205,7 @@ can stay out of it.
 
 Each lexicon pair links two names, so the lexicon forms a network (rows outside
 the lexicon have empty chain columns). `05-chains.R` finds
-its connected components ("chains"): 1,007 pairs connect 1,166 names into 323
+its connected components ("chains"): 1,002 pairs connect 1,164 names into 323
 chains. 157 chains are a single pair, 106 have 3-4 names, 45 have 5-9 and 15
 have 10+. The largest:
 

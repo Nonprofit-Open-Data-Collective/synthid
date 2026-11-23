@@ -17,6 +17,7 @@
 
 source("dev/devdata/_config.R")
 suppressPackageStartupMessages({ library(titleclassifier); library(peopleparser) })
+if (packageVersion("peopleparser") < "0.1.0") stop("peopleparser >= 0.1.0 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
 args <- commandArgs(trailingOnly = TRUE)
 NW   <- if (length(args)) as.integer(args[1]) else max(1L, parallel::detectCores(logical = FALSE) - 2L)
 

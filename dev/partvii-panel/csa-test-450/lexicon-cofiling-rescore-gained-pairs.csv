@@ -1,12 +1,9 @@
 pair,type,N
-JOHN/JONATHAN,nickname,471
-MARIE/MARY,cognate,268
 KIM/KIMBERLY,nickname,186
 SUSAN/SUZANNE,spelling,153
 JEFF/JEFFREY,nickname,105
 BILL/WILL,nickname,95
 STEPHEN/STEVEN,spelling,90
-MARIA/MARY,cognate,82
 JIM/JIMMY,nickname,72
 MARC/MARK,spelling,66
 BRIAN/BRYAN,spelling,57
@@ -58,7 +55,6 @@ JEFF/JEFFERY,nickname,15
 DIANA/DIANE,spelling,14
 RUSS/RUSSELL,nickname,14
 CHRIS/CHRISTIAN,nickname,14
-JOHN/JOHNATHAN,nickname,14
 PATRICIA/PATTI,nickname,13
 RONNIE/RONNY,spelling,13
 JOHN/JOHNNIE,nickname,13
@@ -158,7 +154,6 @@ JUDI/JUDY,spelling,4
 BETH/BETHANY,nickname,4
 GEOFF/GEOFFREY,nickname,4
 DEB/DEBBIE,nickname,4
-MARIA/MARIE,cognate,4
 SALLIE/SALLY,spelling,4
 TRACEY/TRACY,spelling,4
 STACI/STACY,spelling,4

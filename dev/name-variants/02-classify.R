@@ -46,14 +46,19 @@ questionable <- c(
   # forms of different genders
   "CARL/CAROL","MARY/MARTY","MICHELL/MITCHELL","JOE/JOEL","PAUL/PAULA","ROBERT/ROBERTA",
   "JUSTIN/JUSTINE","ERIC/ERICA","NORMA/NORMAN","DENIS/DENISE","FRANCES/FRANCIS","LOUIS/LOUISE",
-  "ALEXANDER/ALEXANDRA","CHRISTIAN/CHRISTINA")
+  "ALEXANDER/ALEXANDRA","CHRISTIAN/CHRISTINA",
+  # moved out after the CSA 450 match review (2026-11-23): the cross-org matches
+  # they added were mostly two different people (different surnames, a MARY with
+  # a second given name, no shared board members), and JOHN and JONATHAN also
+  # appear as two people on one return about half as often as as one
+  "JOHN/JONATHAN","JOHN/JOHNATHAN","MARY/MARIE","MARY/MARIA","MARIA/MARIE")
 parse_error <- c("TIAA/TIAA-CREF","JP/JPMORGAN","WILLIAM/WILLIAMS","DAVID/DAVIS","TIM/TIME","CHRIS/CHRIST",
                  "DOUG/DOUGH","JOS/JOSE")
 cognate <- c("ROBERT/ROBERTO","ANTHONY/ANTONIO","EDWARD/EDUARDO","ED/EDUARDO","FRANK/FRANCISCO",
              "MIKE/MIGUEL","TOM/TOMAS","TOMAS/THOMAS","ART/ARTURO","GUS/GUSTAVO","ALFRED/ALFREDO",
              "ALBERT/ALBERTO","RICARDO/RICHARD","JOE/JOSE","JOSE/JOSEPH","ERNIE/ERNESTO","JAIME/JAMES",
-             "MICHEL/MICHAEL","ANDRE/ANDREW","ANDRES/ANDREW","NATALIA/NATALIE","SUSAN/SUSANA","MARY/MARIA",
-             "MARY/MARIE","MARIA/MARIE","LUIS/LOUIS","ERIC/ERICH","LISA/LISE","MARIAM/MIRIAM",
+             "MICHEL/MICHAEL","ANDRE/ANDREW","ANDRES/ANDREW","NATALIA/NATALIE","SUSAN/SUSANA",
+             "LUIS/LOUIS","ERIC/ERICH","LISA/LISE","MARIAM/MIRIAM",
              "JOANNA/JOHANNA","JULIA/JULIE")
 # hand-confirmed typos the frequency rule can miss (both forms reasonably common, or short)
 typo_manual <- c("BRAIN/BRIAN","MANUAL/MANUEL","MARY/MARRY","KAREN/KARAN","JOH/JOHN","BIL/BILL","JEF/JEFF",
@@ -220,7 +225,10 @@ fwrite(cand[order(-n_emp_ids), c(cols, "gate"), with = FALSE], file.path(ev, "fi
 # Review sample for an error rate: up to 40 pairs per type from the main
 # table, and 40 from each promote-ready candidate gate, drawn at random. A
 # reviewer marks `same_name` (Y/N/?). With 0 errors in 40, the 95% upper
-# bound on that type's error rate is about 7%.
+# bound on that type's error rate is about 7%. The sample is drawn once and
+# then kept, so review calls on it survive a rebuild; set REDRAW_SAMPLE=1 to
+# draw a new one.
+if (!file.exists(file.path(repo, "review-sample.csv")) || Sys.getenv("REDRAW_SAMPLE") == "1") {
 set.seed(20261123)
 samp <- rbind(main[, stratum := paste0("main: ", type)],
               cand[startsWith(gate, "ready"), c(names(main)[names(main) != "stratum"], "gate"), with = FALSE][, stratum := gate],
@@ -228,6 +236,7 @@ samp <- rbind(main[, stratum := paste0("main: ", type)],
 samp <- samp[, .SD[sample(.N, min(.N, 40))], by = stratum]
 fwrite(samp[, .(stratum, name_short, name_long, type, n_emp_ids, n_filings_together, flags, same_name = "", note = "")],
        file.path(repo, "review-sample.csv"))
+}
 
 cat("Pairs seen in", MIN_N, "+ EMP_IDs:", r[reviewed == TRUE, .N], "\n")
 print(r[reviewed == TRUE, .(pairs = .N, emp_ids = sum(n_emp_ids)), by = type][order(-emp_ids)])
