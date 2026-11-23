@@ -49,6 +49,8 @@ TAG <- Sys.getenv("NAME_CHECK_TAG", "")
 sfx <- if (nzchar(TAG)) paste0("-", TAG) else ""
 options(synthid.first_name_lexicon = Sys.getenv("SYNTHID_LEXICON", "1") != "0")
 LEXICON <- getOption("synthid.first_name_lexicon")
+# co-filing pairs capped at the package default (0.85) unless COFILING_SIM is set (NA = none)
+if (nzchar(Sys.getenv("COFILING_SIM"))) options(synthid.first_name_cofiling_sim = suppressWarnings(as.numeric(Sys.getenv("COFILING_SIM"))))
 stamp("pairs: %s; first-name lexicon %s", paste0("pairs", sfx, ".parquet"), if (LEXICON) "on" else "off")
 P <- as.data.table(readRDS(file.path(d, "profiles.rds"))$prof)
 cand <- as.data.table(read_parquet(file.path(d, paste0("pairs", sfx, ".parquet")), col_select = c("emp_a", "emp_b", "score", "csa")))

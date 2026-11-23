@@ -26,6 +26,13 @@ fig <- file.path(pv_repo, paste0("csa-test-", CSA))
 fmt <- function(v) trimws(format(v, big.mark = ","))
 up <- function(v) toupper(trimws(as.character(v)))
 W_FIRST <- synthid::default_weights()[["first_name"]]
+# RESCORE_TAG names the output (pairs-<tag>.parquet, <tag>-rescore*.csv).
+# Co-filing lexicon pairs are capped at the package default (0.85) unless
+# COFILING_SIM is set (NA = no cap). CSA 450 runs: "lexicon-cofiling" is the
+# default comparator, "lexicon" was run with COFILING_SIM=NA.
+TAG <- Sys.getenv("RESCORE_TAG", "lexicon-cofiling")
+if (nzchar(Sys.getenv("COFILING_SIM"))) options(synthid.first_name_cofiling_sim = suppressWarnings(as.numeric(Sys.getenv("COFILING_SIM"))))
+stamp("tag %s; co-filing pairs capped at %s", TAG, getOption("synthid.first_name_cofiling_sim", 0.85))
 
 P <- as.data.table(readRDS(file.path(d, "profiles.rds"))$prof)
 pairs <- as.data.table(read_parquet(file.path(d, "pairs.parquet")))
@@ -79,14 +86,14 @@ if (chk$update_vs_full > 1e-6) stop("score update does not match a full rescore"
 pairs[, score_legacy := score]
 pairs[H, on = "pid", score := score + i.delta]
 pairs[, pid := NULL]
-write_parquet(pairs, file.path(d, "pairs-lexicon.parquet"))
+write_parquet(pairs, file.path(d, paste0("pairs-", TAG, ".parquet")))
 
 cross <- rbindlist(lapply(c(7, 10), function(t) pairs[csa == TRUE, .(
   threshold = t, legacy = sum(score_legacy >= t, na.rm = TRUE), lexicon = sum(score >= t, na.rm = TRUE),
   gained = sum(score >= t & !(score_legacy >= t), na.rm = TRUE), lost = sum(score_legacy >= t & !(score >= t), na.rm = TRUE))]))
 cross[, pct_change := round(100 * (lexicon - legacy) / legacy, 2)]
 cat("\nCSA pairs at each threshold, before and after the lexicon:\n"); print(cross)
-fwrite(cross, file.path(fig, "lexicon-rescore.csv"))
+fwrite(cross, file.path(fig, paste0(TAG, "-rescore.csv")))
 
 # what the gained matches rest on: the first-name pair that changed
 G <- H[delta != 0][pairs[csa == TRUE & score >= 7 & !(score_legacy >= 7), .(emp_a, emp_b)], on = c("emp_a", "emp_b"), nomatch = 0L]
@@ -98,5 +105,5 @@ if (nrow(G)) {
   G[, type := { p <- tstrsplit(pair, "/"); synthid:::first_name_pair_type(p[[1]], p[[2]]) }]
   cat("\nMatches gained at >= 7, by the first-name pair type they rest on:\n"); print(G[, .N, by = type][order(-N)])
   cat("\nMost common first-name pairs among them:\n"); print(G[, .N, by = .(pair, type)][order(-N)][1:25])
-  fwrite(G[, .N, by = .(pair, type)][order(-N)], file.path(fig, "lexicon-rescore-gained-pairs.csv"))
+  fwrite(G[, .N, by = .(pair, type)][order(-N)], file.path(fig, paste0(TAG, "-rescore-gained-pairs.csv")))
 }

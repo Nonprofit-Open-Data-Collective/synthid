@@ -29,7 +29,10 @@ both:
 listed pairs count: two nicknames of one name (\code{LISA}, \code{BETH}) are not
 a pair. With \code{options(synthid.first_name_lexicon = FALSE)} only the
 \code{\link[=nickname_table]{nickname_table()}} pairs are used, each at \code{0.95} (the behaviour before
-the lexicon);
+the lexicon). Lexicon pairs flagged \code{cofiling} (forms that also appear
+as two people on one return, \code{JOHN}/\code{JOHNNY}, often a father and son)
+are capped at \code{0.85}; set \code{options(synthid.first_name_cofiling_sim = x)}
+for another cap, or \code{NA} for none;
 \item single initial vs full name -> \code{0.6} if the initial agrees, else \code{0}
 (an initial is weak evidence, neither a match nor a strong mismatch);
 \item otherwise Jaro-Winkler rescaled by \code{(jw - floor) / (1 - floor)} so

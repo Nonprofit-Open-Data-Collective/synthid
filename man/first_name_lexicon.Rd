@@ -7,8 +7,10 @@
 first_name_lexicon()
 }
 \value{
-A data frame with columns \code{name_short}, \code{name_long}, \code{type} and
-\code{n_emp_ids} (people in the build carrying the pair).
+A data frame with columns \code{name_short}, \code{name_long}, \code{type},
+\code{n_emp_ids} (people in the build carrying the pair) and \code{cofiling} (\code{TRUE}
+when the two forms also appear as two people with one surname on one
+return, e.g. \code{JOHN}/\code{JOHNNY} for a father and son).
 }
 \description{
 Pairs of first names that are two forms of one given name, built from the

@@ -26,8 +26,11 @@ forms in other languages.
 **Status.** The table and the scripts that build it are in
 `dev/name-variants/` in the source repository. Its 1,007 lexicon pairs ship
 with the package as `first_name_lexicon()`, and `compare_first_names()` uses
-them alongside `nickname_table()`. To score with `nickname_table()` alone, as
-before the lexicon, set `options(synthid.first_name_lexicon = FALSE)`.
+them alongside `nickname_table()`. A listed pair scores 0.95 for a nickname or
+spelling, 0.90 for a compound and 0.85 for a cognate. The 66 pairs flagged
+`cofiling` (below) are capped at 0.85. To score with `nickname_table()` alone,
+as before the lexicon, set `options(synthid.first_name_lexicon = FALSE)`. To
+remove the co-filing cap, set `options(synthid.first_name_cofiling_sim = NA)`.
 
 ## Where the pairs come from
 
@@ -275,8 +278,26 @@ knitr::include_graphics(sprintf("figures/name-chains-%d.png", 1:5))
 
 ## Effect on matching
 
-Two checks on one combined statistical area (CSA 450), each run with the
-lexicon on and off.
+Three checks on one combined statistical area (CSA 450), each run three ways:
+with `nickname_table()` only (before), with the lexicon at full weight, and
+with the lexicon and the 66 co-filing pairs capped at 0.85, which is the
+package default.
+
+| | Before | Lexicon, full weight | Lexicon, co-filing capped (default) |
+|---|---|---|---|
+| Matches at score 7+ | 89,237 | 93,246 | 92,893 |
+| Matches at score 10+ | 40,762 | 41,107 | 41,046 |
+| Matches at 7+ with two different established surnames | 3,776 | 4,075 | 3,938 |
+| Middle-initial conflicts among them | 571 | 593 | 579 |
+| Seeded lexicon nicknames found at 10+ | 15.7% | 100% | 97.1% |
+| Seeded lexicon spellings found at 10+ | 52.0% | 100% | 99.3% |
+
+The cap is the default because of what it removes. It drops 353 of the
+lexicon's new matches at 7, and 340 of those (96%) have differing surnames,
+against about 15% of all matches. It keeps every seeded variant at 7. Its cost:
+122 matches that `nickname_table()` alone produced, such as JOHN/JOHNNY pairs,
+fall below 7, and recall at 10 dips by 1 to 3 points. The sections below give
+the full-weight results.
 
 **Seeded recall (06j).** Pairs of rare, identical names that score 11 or more
 are near-certain matches. Rewriting one side's first name shows whether the

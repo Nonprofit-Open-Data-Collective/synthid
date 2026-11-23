@@ -46,6 +46,20 @@ test_that("the lexicon adds pairs, scored by type", {
   expect_lt(compare_first_names("KATHLEEN", "KATHERINE"), 0.85)  # two formal names, linked only through KATE
 })
 
+test_that("co-filing pairs are capped at 0.85 by default, and the cap can be changed", {
+  expect_true(first_name_pair_cofiling("JIM", "JIMMY"))
+  expect_false(first_name_pair_cofiling("KATE", "KATHLEEN"))
+  expect_equal(compare_first_names("JIM", "JIMMY"), 0.85)
+  expect_equal(compare_first_names("KATE", "KATHLEEN"), 0.95)
+  local({ old <- options(synthid.first_name_cofiling_sim = NA); on.exit(options(old))
+    expect_equal(compare_first_names("JIM", "JIMMY"), 0.95)
+  })
+  local({ old <- options(synthid.first_name_cofiling_sim = 0.7); on.exit(options(old))
+    expect_gte(compare_first_names("JIM", "JIMMY"), 0.7)   # the cap, or the fuzzy score if higher
+    expect_lt(compare_first_names("JIM", "JIMMY"), 0.85)
+  })
+})
+
 test_that("the lexicon can be turned off to reproduce the nickname_table() scores", {
   local({ old <- options(synthid.first_name_lexicon = FALSE); on.exit(options(old))
     expect_equal(compare_first_names("BOB", "ROBERT"), 0.95)

@@ -148,8 +148,14 @@ transpositions (BIRAN/BRIAN).
 read by `synthid::first_name_lexicon()`. `compare_first_names()` scores a listed
 pair (lexicon or a direct `nickname_table()` pair) by type: nickname and
 spelling 0.95, compound 0.90, cognate 0.85, or the fuzzy score if higher.
-`options(synthid.first_name_lexicon = FALSE)` restores the old behavior
-(`nickname_table()` pairs at 0.95). `nickname_table()` itself and the profile
+The 66 lexicon pairs flagged `cofiling` (column in the shipped file) are
+capped at 0.85 by default (`options(synthid.first_name_cofiling_sim = NA)`
+removes the cap). `options(synthid.first_name_lexicon = FALSE)` restores the
+old behavior (`nickname_table()` pairs at 0.95). On CSA 450 the cap drops 353
+of the lexicon's new matches at score 7, 96% of them with differing surnames,
+and keeps every seeded variant at 7. Result files: `seeded-test.csv` (default),
+`seeded-test-nocap.csv`, `seeded-test-legacy.csv`; `lexicon-cofiling-*`
+(default) and `lexicon-*` (no cap) for 06n and 06k. `nickname_table()` itself and the profile
 `first_name_roots` are unchanged. Effect on CSA 450:
 `dev/partvii-panel/csa-test-450/seeded-test*.csv` (06j, before and after),
 `lexicon-rescore*.csv` (06n) and `name-checks-*-lexicon.csv` (06k); the

@@ -110,8 +110,10 @@ nickname_equivalent_vec <- function(a, b) {
 #' (the same name in another language, `JOSE`/`JOSEPH`). See
 #' `vignette("first-name-variants")` for how it was built.
 #'
-#' @return A data frame with columns `name_short`, `name_long`, `type` and
-#'   `n_emp_ids` (people in the build carrying the pair).
+#' @return A data frame with columns `name_short`, `name_long`, `type`,
+#'   `n_emp_ids` (people in the build carrying the pair) and `cofiling` (`TRUE`
+#'   when the two forms also appear as two people with one surname on one
+#'   return, e.g. `JOHN`/`JOHNNY` for a father and son).
 #' @seealso [compare_first_names()], [nickname_table()]
 #' @export
 first_name_lexicon <- function() {
@@ -138,7 +140,7 @@ first_name_type_sim <- function() c(nickname = 0.95, spelling = 0.95, compound =
 pair_cache <- function() {
   if (!is.null(.synthid_cache$pairs_full)) return(.synthid_cache)
   key <- function(a, b) ifelse(a < b, paste(a, b, sep = "|"), paste(b, a, sep = "|"))
-  legacy <- new.env(hash = TRUE); full <- new.env(hash = TRUE)
+  legacy <- new.env(hash = TRUE); full <- new.env(hash = TRUE); cofiling <- new.env(hash = TRUE)
   nick <- nickname_table()
   for (canon in names(nick)) for (v in nick[[canon]]) {
     k <- key(canon, v); legacy[[k]] <- "nickname"; full[[k]] <- "nickname"
@@ -147,9 +149,11 @@ pair_cache <- function() {
   if (nrow(lx)) {
     k <- key(toupper(lx$name_short), toupper(lx$name_long))
     for (i in seq_along(k)) full[[k[i]]] <- lx$type[i]
+    if ("cofiling" %in% names(lx)) for (kk in k[as.logical(lx$cofiling) %in% TRUE]) cofiling[[kk]] <- TRUE
   }
   .synthid_cache$pairs_legacy <- legacy
   .synthid_cache$pairs_full <- full
+  .synthid_cache$pairs_cofiling <- cofiling
   .synthid_cache$pair_key <- key
   .synthid_cache
 }
@@ -177,6 +181,23 @@ first_name_pair_type <- function(a, b, lexicon = getOption("synthid.first_name_l
   out
 }
 
+#' Is a lexicon pair flagged as co-filing? (vectorised)
+#' @inheritParams first_name_pair_type
+#' @return Logical vector: `TRUE` where the pair is in [first_name_lexicon()]
+#'   with `cofiling = TRUE`.
+#' @keywords internal
+first_name_pair_cofiling <- function(a, b) {
+  cc <- pair_cache()
+  a[is.na(a)] <- ""; b[is.na(b)] <- ""
+  out <- logical(length(a))
+  ok <- nzchar(a) & nzchar(b) & a != b
+  if (any(ok)) {
+    hit <- mget(cc$pair_key(a[ok], b[ok]), envir = cc$pairs_cofiling, ifnotfound = list(FALSE))
+    out[ok] <- unlist(hit, use.names = FALSE)
+  }
+  out
+}
+
 #' Compare two first names, with nickname, initial, and phonetic handling
 #'
 #' The comparator used for the `first_name` field. Plain Jaro-Winkler is a poor
@@ -192,7 +213,10 @@ first_name_pair_type <- function(a, b, lexicon = getOption("synthid.first_name_l
 #'     listed pairs count: two nicknames of one name (`LISA`, `BETH`) are not
 #'     a pair. With `options(synthid.first_name_lexicon = FALSE)` only the
 #'     [nickname_table()] pairs are used, each at `0.95` (the behaviour before
-#'     the lexicon);
+#'     the lexicon). Lexicon pairs flagged `cofiling` (forms that also appear
+#'     as two people on one return, `JOHN`/`JOHNNY`, often a father and son)
+#'     are capped at `0.85`; set `options(synthid.first_name_cofiling_sim = x)`
+#'     for another cap, or `NA` for none;
 #'   \item single initial vs full name -> `0.6` if the initial agrees, else `0`
 #'     (an initial is weak evidence, neither a match nor a strong mismatch);
 #'   \item otherwise Jaro-Winkler rescaled by `(jw - floor) / (1 - floor)` so
@@ -250,6 +274,11 @@ compare_first_names <- function(a, b, floor = 0.5) {
     base[phon] <- pmax(base[phon], 0.5)
     ts <- unname(first_name_type_sim()[typ[rem]])
     ts[is.na(ts)] <- 0
+    cap <- getOption("synthid.first_name_cofiling_sim", 0.85)
+    if (!is.na(cap)) {                             # co-filing pairs (JOHN/JOHNNY) capped lower
+      cf <- first_name_pair_cofiling(a[rem], b[rem])
+      ts[cf] <- pmin(ts[cf], cap)
+    }
     out[rem] <- pmax(base, ts)
   }
   out

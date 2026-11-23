@@ -27,8 +27,10 @@
 #                           different name (JOHN -> JOSH; first-name-variants-questionable.csv).
 #                           Recall here is a false-match rate: lower is better.
 #
-# Comparator: first_name_lexicon() on (default), or the nickname_table() pairs
-# only with SYNTHID_LEXICON=0. Output: seeded-test.csv, or seeded-test-legacy.csv.
+# Comparator: the package default (first_name_lexicon() on, co-filing pairs
+# capped at 0.85) -> seeded-test.csv; COFILING_SIM=NA (no cap) ->
+# seeded-test-nocap.csv; SYNTHID_LEXICON=0 (nickname_table() pairs only) ->
+# seeded-test-legacy.csv.
 #
 # Weighted miss rate: each perturbation's miss rate times how often that kind
 # of variation shows up within organizations (06h "name variants", CSA 450).
@@ -50,7 +52,10 @@ cand <- as.data.table(read_parquet(file.path(d, "pairs.parquet"), col_select = c
 nt <- synthid::nickname_table()
 LEXICON <- Sys.getenv("SYNTHID_LEXICON", "1") != "0"
 options(synthid.first_name_lexicon = LEXICON)
-OUT <- if (LEXICON) "seeded-test.csv" else "seeded-test-legacy.csv"
+# co-filing pairs are capped at the package default (0.85); COFILING_SIM=x sets
+# another cap, COFILING_SIM=NA none
+if (nzchar(Sys.getenv("COFILING_SIM"))) options(synthid.first_name_cofiling_sim = suppressWarnings(as.numeric(Sys.getenv("COFILING_SIM"))))
+OUT <- if (!LEXICON) "seeded-test-legacy.csv" else if (is.na(getOption("synthid.first_name_cofiling_sim", 0.85))) "seeded-test-nocap.csv" else "seeded-test.csv"
 stamp("first-name comparator: %s", if (LEXICON) "first_name_lexicon() + nickname_table()" else "nickname_table() only")
 # substitution maps from the lexicon (formal -> forms), excluding nickname_table() pairs
 lx <- as.data.table(synthid::first_name_lexicon())
