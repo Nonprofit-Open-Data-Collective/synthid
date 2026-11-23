@@ -20,6 +20,15 @@
 #   surname_hyphenated      another surname added: OTHER-SURNAME (married, hyphenated)
 #   surname_replaced        surname replaced by another (married, not hyphenated)
 #   order_swapped           first and last name swapped
+#   nickname_lexicon        formal first name -> a nickname from first_name_lexicon()
+#                           that nickname_table() does not list (the lexicon's new pairs)
+#   spelling_lexicon        first name -> its spelling variant in first_name_lexicon()
+#   different_name          first name -> a name the variant review called a
+#                           different name (JOHN -> JOSH; first-name-variants-questionable.csv).
+#                           Recall here is a false-match rate: lower is better.
+#
+# Comparator: first_name_lexicon() on (default), or the nickname_table() pairs
+# only with SYNTHID_LEXICON=0. Output: seeded-test.csv, or seeded-test-legacy.csv.
 #
 # Weighted miss rate: each perturbation's miss rate times how often that kind
 # of variation shows up within organizations (06h "name variants", CSA 450).
@@ -39,6 +48,22 @@ P <- as.data.table(readRDS(file.path(d, "profiles.rds"))$prof)
 sw <- readRDS(file.path(pv_root, "xorg-csa", "prep", "surname-weight.rds"))
 cand <- as.data.table(read_parquet(file.path(d, "pairs.parquet"), col_select = c("emp_a", "emp_b", "score", "csa")))
 nt <- synthid::nickname_table()
+LEXICON <- Sys.getenv("SYNTHID_LEXICON", "1") != "0"
+options(synthid.first_name_lexicon = LEXICON)
+OUT <- if (LEXICON) "seeded-test.csv" else "seeded-test-legacy.csv"
+stamp("first-name comparator: %s", if (LEXICON) "first_name_lexicon() + nickname_table()" else "nickname_table() only")
+# substitution maps from the lexicon (formal -> forms), excluding nickname_table() pairs
+lx <- as.data.table(synthid::first_name_lexicon())
+legacy_pair <- function(a, b) !is.na(synthid:::first_name_pair_type(a, b, lexicon = FALSE))
+lx_nick <- lx[type == "nickname" & !legacy_pair(name_short, name_long)]
+nick_map <- split(lx_nick$name_short, lx_nick$name_long)
+lx_sp <- lx[type == "spelling"]
+sp_map <- split(c(lx_sp$name_long, lx_sp$name_short), c(lx_sp$name_short, lx_sp$name_long))
+qs <- fread("dev/name-variants/first-name-variants-questionable.csv")
+diff_map <- split(c(qs$name_long, qs$name_short), c(qs$name_short, qs$name_long))
+from_map <- function(B, m) { f <- up(B$first_name); ok <- f %in% names(m)
+  v <- ifelse(ok, vapply(f, function(x) if (x %in% names(m)) { o <- m[[x]]; o[sample.int(length(o), 1)] } else NA_character_, ""), NA_character_)
+  list(B = set_first(B, v), ok = ok) }
 fmt <- function(v) trimws(format(v, big.mark = ","))
 
 up <- function(v) toupper(trimws(as.character(v)))
@@ -82,7 +107,10 @@ perturb <- list(
   surname_typo_first = function(B) { v <- vapply(up(B$last_name), swap_letter, "", pos_min = 1L); list(B = set_last(B, v), ok = !is.na(v)) },
   surname_hyphenated = function(B) { o <- sample(common_surnames, nrow(B), TRUE); v <- paste0(o, "-", up(B$last_name)); list(B = set_last(B, v), ok = rep(TRUE, nrow(B))) },
   surname_replaced = function(B) { o <- sample(common_surnames, nrow(B), TRUE); v <- ifelse(o == up(B$last_name), common_surnames[1], o); list(B = set_last(B, v), ok = rep(TRUE, nrow(B))) },
-  order_swapped = function(B) { f <- B$first_name; l <- B$last_name; B <- set_first(B, l); B <- set_last(B, f); list(B = B, ok = !is.na(f) & !is.na(l)) }
+  order_swapped = function(B) { f <- B$first_name; l <- B$last_name; B <- set_first(B, l); B <- set_last(B, f); list(B = B, ok = !is.na(f) & !is.na(l)) },
+  nickname_lexicon = function(B) from_map(B, nick_map),
+  spelling_lexicon = function(B) from_map(B, sp_map),
+  different_name = function(B) from_map(B, diff_map)
 )
 
 keysA <- lapply(A$last_name_variants, function(v) if (length(v)) unique(unlist(lapply(v, synthid::surname_blocking_keys))) else character(0))
@@ -116,4 +144,4 @@ base_miss7 <- 1 - res[perturbation == "control", recall_7]
 cat(sprintf("\nWeighted miss rate from name variation (per cross-org pair, rough): %.1f%% at score 7, %.1f%% at score 10 (control misses %.1f%%)\n",
             100 * miss7, 100 * miss10, 100 * base_miss7))
 res[, rate_within_org := rate[perturbation]]
-fwrite(res, file.path(fig, "seeded-test.csv"))
+fwrite(res, file.path(fig, OUT))

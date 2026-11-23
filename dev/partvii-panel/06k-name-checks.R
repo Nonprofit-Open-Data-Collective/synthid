@@ -42,8 +42,16 @@ K_FIRST <- 5L                   # first names: established if carried by 5+ reco
 JW_MIN <- as.numeric(Sys.getenv("JW_MIN", "0.89"))   # Jaro-Winkler at or above this counts as a spelling variant
 d <- file.path(pv_root, "blocks", "csa-test", paste0("csa=", CSA))
 fig <- file.path(pv_repo, paste0("csa-test-", CSA))
+# NAME_CHECK_TAG=lexicon reads pairs-lexicon.parquet (06n-lexicon-rescore.R),
+# writes its summaries as name-checks-*-lexicon.csv, and leaves the hard-case
+# library alone. SYNTHID_LEXICON=0 turns the first-name lexicon off.
+TAG <- Sys.getenv("NAME_CHECK_TAG", "")
+sfx <- if (nzchar(TAG)) paste0("-", TAG) else ""
+options(synthid.first_name_lexicon = Sys.getenv("SYNTHID_LEXICON", "1") != "0")
+LEXICON <- getOption("synthid.first_name_lexicon")
+stamp("pairs: %s; first-name lexicon %s", paste0("pairs", sfx, ".parquet"), if (LEXICON) "on" else "off")
 P <- as.data.table(readRDS(file.path(d, "profiles.rds"))$prof)
-cand <- as.data.table(read_parquet(file.path(d, "pairs.parquet"), col_select = c("emp_a", "emp_b", "score", "csa")))
+cand <- as.data.table(read_parquet(file.path(d, paste0("pairs", sfx, ".parquet")), col_select = c("emp_a", "emp_b", "score", "csa")))
 fmt <- function(v) trimws(format(v, big.mark = ","))
 up <- function(v) toupper(trimws(as.character(v)))
 
@@ -90,6 +98,10 @@ first_rel <- function(a, b, roots_a, roots_b) {
   a <- up(a); b <- up(b)
   if (is.na(a) || is.na(b) || !nzchar(a) || !nzchar(b)) return("missing")
   if (a == b) return("same")
+  if (LEXICON) {                                   # a listed pair in first_name_lexicon()
+    lt <- synthid:::first_name_pair_type(a, b)
+    if (!is.na(lt)) return(switch(lt, spelling = "spelling", cognate = "cognate", "nickname"))
+  }
   if (length(intersect(up(roots_a), up(roots_b)))) return("nickname")
   if (nchar(a) == 1 || nchar(b) == 1) return(if (substr(a, 1, 1) == substr(b, 1, 1)) "initial" else "different")
   if (ed_ok(a, b)) return("spelling")
@@ -163,7 +175,7 @@ cal <- rbindlist(lapply(KS, function(K) rbind(
 calt <- cal[, .N, by = .(K, set, relation)][, share := round(N / sum(N), 3), by = .(K, set)]
 calt <- dcast(calt, K + set ~ relation, value.var = "share", fill = 0)
 cat("\nCalibration: share of each surname relation\n"); print(calt)
-fwrite(calt, file.path(fig, "name-checks-calibration.csv"))
+fwrite(calt, file.path(fig, paste0("name-checks-calibration", sfx, ".csv")))
 
 K <- 25L
 cat(sprintf("\nUsing K = %d (an established surname is carried by %d+ people nationally)\n", K, K))
@@ -199,7 +211,7 @@ both <- M[up(ln_a) != up(ln_b)][diffM, on = c("emp_a", "emp_b"), surname_relatio
 fwrite(rbind(wsum[, .(check = "within-org worst surname relation", relation, N)],
              xs[, .(check = "cross-org surname relation (surnames differ)", relation = surname_relation, N)],
              fr[, .(check = "cross-org first-name relation", relation = first_relation, N)]),
-       file.path(fig, "name-checks-results.csv"))
+       file.path(fig, paste0("name-checks-results", sfx, ".csv")))
 
 # examples, with names: data folder only
 nmv <- function(e) vapply(P$name_variants[ix(e)], function(v) paste(unique(v), collapse = " / "), "")
@@ -207,7 +219,7 @@ ex <- rbind(
   wrel[relation == "different"][sample(.N, min(25, .N))][, .(check = "within-org: two different surnames", forms_a = nmv(EMP_ID), forms_b = "", score = NA_real_, shared = NA_integer_)],
   diffM[surname_relation == "different"][sample(.N, min(25, .N))][, .(check = "cross-org: different surnames", forms_a = nmv(emp_a), forms_b = nmv(emp_b), score = round(score, 2), shared)],
   M[first_relation == "different"][sample(.N, min(25, .N))][, .(check = "cross-org: different first names", forms_a = nmv(emp_a), forms_b = nmv(emp_b), score = round(score, 2), shared)])
-fwrite(ex, file.path(d, "review", "name-checks-examples.csv"))
+fwrite(ex, file.path(d, "review", paste0("name-checks-examples", sfx, ".csv")))
 options(width = 200); print(head(ex, 40))
 
 # ---- gates on generational suffixes and middle initials -----------------------------------
@@ -219,10 +231,14 @@ gates <- rbind(M[, .N, by = .(relation = suffix_relation)][, gate := "generation
                M[, .N, by = .(relation = middle_relation)][, gate := "middle initial"])
 gates[, share_of_matches := round(N / nrow(M), 4)]
 cat("\nCross-org matches at >= 7 by suffix and middle-initial relation:\n"); print(gates)
-fwrite(gates, file.path(fig, "name-checks-gates.csv"))
+fwrite(gates, file.path(fig, paste0("name-checks-gates", sfx, ".csv")))
 
 # ---- hard-case library ----------------------------------------------------------------------
-onames <- as.data.table(read_parquet(file.path(pv_root, "orgs", "orgs.parquet"), col_select = c("ein", "org.name")))
+if (nzchar(TAG)) {                                # a tagged experimental run does not touch the library
+  stamp("tag %s: hard-case library not written", TAG)
+  quit(save = "no")
+}
+onames <-as.data.table(read_parquet(file.path(pv_root, "orgs", "orgs.parquet"), col_select = c("ein", "org.name")))
 onames <- setNames(onames$org.name, onames$ein)
 det <- function(...) paste0(...)
 # Ground truth: the same full name held by two people in one organization in overlapping years.

@@ -23,7 +23,13 @@ different first name adds little discriminating penalty). This comparator fixes
 both:
 \itemize{
 \item exact match -> \code{1};
-\item nickname/diminutive of the same canonical (\code{nickname_table()}) -> \code{0.95};
+\item a listed pair (\code{\link[=first_name_lexicon]{first_name_lexicon()}} or a direct pair of
+\code{\link[=nickname_table]{nickname_table()}}) -> by type: nickname or spelling \code{0.95}, compound
+\code{0.9}, cognate \code{0.85}, or the fuzzy score below if that is higher. Only
+listed pairs count: two nicknames of one name (\code{LISA}, \code{BETH}) are not
+a pair. With \code{options(synthid.first_name_lexicon = FALSE)} only the
+\code{\link[=nickname_table]{nickname_table()}} pairs are used, each at \code{0.95} (the behaviour before
+the lexicon);
 \item single initial vs full name -> \code{0.6} if the initial agrees, else \code{0}
 (an initial is weak evidence, neither a match nor a strong mismatch);
 \item otherwise Jaro-Winkler rescaled by \code{(jw - floor) / (1 - floor)} so

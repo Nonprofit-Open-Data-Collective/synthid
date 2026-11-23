@@ -13,7 +13,9 @@ vector of nicknames.
 \description{
 Maps each canonical given name to its common nicknames and diminutives. Used to
 recognise that, e.g., \code{BOB} and \code{ROBERT} denote the same first name. Some
-nicknames map to more than one canonical (e.g. \code{AL} -> \code{ALBERT}, \code{ALEXANDER});
-two names are treated as equivalent when they share \emph{any} canonical root, so
-these ambiguous cases are handled correctly.
+nicknames map to more than one canonical (e.g. \code{AL} -> \code{ALBERT}, \code{ALEXANDER}).
+\code{\link[=compare_first_names]{compare_first_names()}} treats a canonical and one of its listed nicknames as
+a pair; two nicknames of one canonical (\code{LISA}, \code{BETH}) are not a pair. The
+canonical roots also feed \code{\link[=first_name_roots]{first_name_roots()}} in person profiles. The larger,
+data-built \code{\link[=first_name_lexicon]{first_name_lexicon()}} adds to these pairs in the comparator.
 }

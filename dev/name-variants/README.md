@@ -142,6 +142,19 @@ ALEXA/ALEXIS and BRAD/BRADY pass the key. The strict key also misses some real
 pairs that Soundex catches, such as clipped forms (CHRISTIE/CHRISTINA) and
 transpositions (BIRAN/BRIAN).
 
+## In the package
+
+`06-lexicon.R` writes the lexicon rows to `inst/extdata/first-name-variants.csv`,
+read by `synthid::first_name_lexicon()`. `compare_first_names()` scores a listed
+pair (lexicon or a direct `nickname_table()` pair) by type: nickname and
+spelling 0.95, compound 0.90, cognate 0.85, or the fuzzy score if higher.
+`options(synthid.first_name_lexicon = FALSE)` restores the old behavior
+(`nickname_table()` pairs at 0.95). `nickname_table()` itself and the profile
+`first_name_roots` are unchanged. Effect on CSA 450:
+`dev/partvii-panel/csa-test-450/seeded-test*.csv` (06j, before and after),
+`lexicon-rescore*.csv` (06n) and `name-checks-*-lexicon.csv` (06k); the
+vignette summarizes them.
+
 ## Lexicon and fuzzy coverage
 
 `lexicon` marks the rows a comparator built from the table should load: TRUE

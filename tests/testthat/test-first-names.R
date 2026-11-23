@@ -20,9 +20,41 @@ test_that("initials are weak evidence, not strong matches", {
 })
 
 test_that("phonetic agreement removes the penalty without asserting a match", {
-  s <- compare_first_names("STEPHEN", "STEVEN")  # same Soundex, not in nickname table together
+  s <- compare_first_names("ROBERT", "RUPERT")  # same Soundex, not a listed pair
   expect_gt(s, 0.5)
   expect_lt(s, 0.9)
+  local({ old <- options(synthid.first_name_lexicon = FALSE); on.exit(options(old))
+    s <- compare_first_names("STEPHEN", "STEVEN")  # not a nickname_table() pair
+    expect_gt(s, 0.5)
+    expect_lt(s, 0.9)
+  })
+})
+
+test_that("the lexicon adds pairs, scored by type", {
+  lx <- first_name_lexicon()
+  expect_gt(nrow(lx), 900)
+  expect_setequal(unique(lx$type), c("nickname", "spelling", "compound", "cognate"))
+  expect_equal(compare_first_names("STEPHEN", "STEVEN"), 0.95)   # spelling
+  expect_equal(compare_first_names("KATHLEEN", "KATE"), 0.95)    # nickname not in nickname_table()
+  expect_equal(compare_first_names("JEFFREY", "JEFF"), 0.95)
+  expect_equal(compare_first_names("MARYANN", "MARY"), 0.90)     # compound
+  expect_gte(compare_first_names("JOSEPH", "JOSE"), 0.85)        # cognate (or its fuzzy score, if higher)
+  expect_lt(compare_first_names("JOSEPH", "JOSE"), 0.95)
+  # pairs the review called different names are not listed
+  expect_lt(compare_first_names("JOHN", "JOSH"), 0.85)
+  expect_lt(compare_first_names("PAUL", "PAULA"), 0.95)
+  expect_lt(compare_first_names("KATHLEEN", "KATHERINE"), 0.85)  # two formal names, linked only through KATE
+})
+
+test_that("the lexicon can be turned off to reproduce the nickname_table() scores", {
+  local({ old <- options(synthid.first_name_lexicon = FALSE); on.exit(options(old))
+    expect_equal(compare_first_names("BOB", "ROBERT"), 0.95)
+    expect_lt(compare_first_names("KATHLEEN", "KATE"), 0.95)
+    expect_lt(compare_first_names("JEFFREY", "JEFF"), 0.95)
+  })
+  expect_true(is.na(first_name_pair_type("JOHN", "JOSH")))
+  expect_equal(first_name_pair_type(c("BOB", "KATE"), c("ROBERT", "KATHLEEN")), c("nickname", "nickname"))
+  expect_true(is.na(first_name_pair_type("KATE", "KATHLEEN", lexicon = FALSE)))
 })
 
 test_that("missing names return NA and the comparator is vectorised", {

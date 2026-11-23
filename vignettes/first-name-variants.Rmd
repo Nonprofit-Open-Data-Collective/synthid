@@ -23,9 +23,11 @@ It is called a *variant* table, not a nickname table, because most of its
 pairs are not nicknames. They also include spellings, compound names and
 forms in other languages.
 
-**Status: draft.** The table and the scripts that build it are in
-`dev/name-variants/` in the source repository. The table is not yet used by
-`compare_first_names()`.
+**Status.** The table and the scripts that build it are in
+`dev/name-variants/` in the source repository. Its 1,007 lexicon pairs ship
+with the package as `first_name_lexicon()`, and `compare_first_names()` uses
+them alongside `nickname_table()`. To score with `nickname_table()` alone, as
+before the lexicon, set `options(synthid.first_name_lexicon = FALSE)`.
 
 ## Where the pairs come from
 
@@ -270,6 +272,65 @@ knitr::include_graphics(sprintf("figures/name-chains-%d.png", 1:5))
   joined through KRIS, CHRISSY and spelling variants.
 - **Chain 5 (14 names).** MARGARET's short forms (MEG, PEGGY, MAGGIE, MARGE),
   joined to MEGAN through MEG and to MARJORIE through MARGE.
+
+## Effect on matching
+
+Two checks on one combined statistical area (CSA 450), each run with the
+lexicon on and off.
+
+**Seeded recall (06j).** Pairs of rare, identical names that score 11 or more
+are near-certain matches. Rewriting one side's first name shows whether the
+pair is still found:
+
+| Rewrite of one side | Seeds | Score >= 7, before / after | Score >= 10, before / after |
+|---|---|---|---|
+| nickname that only the lexicon lists | 274 | 90.9% / 100% | 15.7% / 100% |
+| spelling variant from the lexicon | 723 | 98.2% / 100% | 52.0% / 100% |
+| a different name (JOHN -> JOSH), lower is better | 252 | 91.7% / 91.7% | 35.3% / 35.3% |
+
+Every other rewrite gives the same result with the lexicon on or off. The last
+row checks for false matches, and the lexicon does not change it. It also
+shows a weakness that predates the lexicon: a different first name on
+otherwise identical rare names still scores 7 or more nine times in ten.
+
+**Cross-org matches (06n).** The CSA's 14.3 million candidate pairs were
+rescored. Because the score is additive, the first-name change could be
+applied exactly to the 11,587 pairs it affects. A full rescore of a sample
+matched to within rounding.
+
+| Threshold | Before | After | Gained | Lost |
+|---|---|---|---|---|
+| score >= 7 | 89,237 | 93,246 | 4,009 (+4.5%) | 0 |
+| score >= 10 | 40,762 | 41,107 | 345 (+0.8%) | 0 |
+
+Of the 4,009 new matches at 7, 2,454 rest on a nickname, 1,105 on a spelling,
+417 on a cognate and 33 on a compound. The most common are JOHN/JONATHAN
+(616), MARIE/MARY (268), KIM/KIMBERLY (186) and SUSAN/SUZANNE (153). Two of
+those carried a warning in the review: JOHN/JONATHAN and MARIE/MARY also
+appear as two people on one return, so their new matches deserve a look.
+
+**Name checks (06k).** The post-match name checks were rerun on the rescored
+matches. Among matches at 7 or more:
+
+| First-name relation | Before | After |
+|---|---|---|
+| same | 76,026 | 76,026 |
+| nickname | 10,068 | 12,597 |
+| spelling | 2,310 | 3,391 |
+| cognate | 0 | 465 |
+| different (two established first names) | 534 | 471 |
+
+The surname check still sorts its calibration sets the same way. It calls
+2.0% of the trusted matches "different" (before: 1.8%) and the same 52% of the
+negative pairs.
+
+The new matches are weaker on average than the old ones, as expected for pairs
+that were just below the threshold. 38% of the 4,009 gained matches have
+different best surnames, against 15.5% of the existing matches. 299 of them
+(7.5%) have two different established surnames, against 4.2% before. Middle
+initial conflicts rose by 22. These gained matches, and the flagged pairs
+behind many of them, are where to look first if the lexicon admits false
+matches.
 
 ## Rebuilding the table
 

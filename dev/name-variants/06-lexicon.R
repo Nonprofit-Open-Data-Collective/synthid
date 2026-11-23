@@ -53,6 +53,9 @@ lead <- c("name_short", "name_long", "type", "lexicon", "n_emp_ids", "fuzzy_sim"
 setcolorder(out, c(lead, setdiff(names(out), lead)))
 setorder(out, -lexicon, -n_emp_ids)
 fwrite(out, f)
+# the copy the package ships: lexicon rows only, read by synthid::first_name_lexicon()
+dir.create("inst/extdata", recursive = TRUE, showWarnings = FALSE)
+fwrite(out[lexicon == TRUE, .(name_short, name_long, type, n_emp_ids)], "inst/extdata/first-name-variants.csv")
 
 cat("Rows:", nrow(out), " lexicon:", sum(out$lexicon), " outside lexicon:", sum(!out$lexicon), "\n\n")
 print(out[, .(pairs = .N, fuzzy_covered = sum(fuzzy_covered), share_covered = round(mean(fuzzy_covered), 3),

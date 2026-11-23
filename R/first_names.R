@@ -2,9 +2,11 @@
 #'
 #' Maps each canonical given name to its common nicknames and diminutives. Used to
 #' recognise that, e.g., `BOB` and `ROBERT` denote the same first name. Some
-#' nicknames map to more than one canonical (e.g. `AL` -> `ALBERT`, `ALEXANDER`);
-#' two names are treated as equivalent when they share *any* canonical root, so
-#' these ambiguous cases are handled correctly.
+#' nicknames map to more than one canonical (e.g. `AL` -> `ALBERT`, `ALEXANDER`).
+#' [compare_first_names()] treats a canonical and one of its listed nicknames as
+#' a pair; two nicknames of one canonical (`LISA`, `BETH`) are not a pair. The
+#' canonical roots also feed [first_name_roots()] in person profiles. The larger,
+#' data-built [first_name_lexicon()] adds to these pairs in the comparator.
 #'
 #' @return A named list: each element is a canonical name, its value the character
 #'   vector of nicknames.
@@ -98,6 +100,83 @@ nickname_equivalent_vec <- function(a, b) {
   res
 }
 
+#' First-name variant lexicon
+#'
+#' Pairs of first names that are two forms of one given name, built from the
+#' names one person carries across their own organization's Part VII filings
+#' (national 2010-2024 build; pairs seen for 25+ people, reviewed by hand). Each
+#' pair has a type: `nickname` (incl. short forms and diminutives, `BOB`/`ROBERT`),
+#' `spelling` (`JEFFERY`/`JEFFREY`), `compound` (`MARY`/`MARYANN`) or `cognate`
+#' (the same name in another language, `JOSE`/`JOSEPH`). See
+#' `vignette("first-name-variants")` for how it was built.
+#'
+#' @return A data frame with columns `name_short`, `name_long`, `type` and
+#'   `n_emp_ids` (people in the build carrying the pair).
+#' @seealso [compare_first_names()], [nickname_table()]
+#' @export
+first_name_lexicon <- function() {
+  if (!is.null(.synthid_cache$lexicon)) return(.synthid_cache$lexicon)
+  f <- system.file("extdata", "first-name-variants.csv", package = "synthid")
+  lx <- if (nzchar(f)) {
+    utils::read.csv(f, stringsAsFactors = FALSE, na.strings = "")
+  } else {
+    data.frame(name_short = character(0), name_long = character(0), type = character(0), n_emp_ids = integer(0))
+  }
+  .synthid_cache$lexicon <- lx
+  lx
+}
+
+#' Similarity the comparator gives a listed pair, by type
+#'
+#' A cognate is true for some people (an anglicised name) and not for others,
+#' so it is weighted below a nickname or spelling.
+#' @keywords internal
+first_name_type_sim <- function() c(nickname = 0.95, spelling = 0.95, compound = 0.90, cognate = 0.85)
+
+## Hashed pair lookups: legacy (nickname_table() direct pairs) and full
+## (legacy plus the lexicon; a lexicon type wins over the legacy "nickname").
+pair_cache <- function() {
+  if (!is.null(.synthid_cache$pairs_full)) return(.synthid_cache)
+  key <- function(a, b) ifelse(a < b, paste(a, b, sep = "|"), paste(b, a, sep = "|"))
+  legacy <- new.env(hash = TRUE); full <- new.env(hash = TRUE)
+  nick <- nickname_table()
+  for (canon in names(nick)) for (v in nick[[canon]]) {
+    k <- key(canon, v); legacy[[k]] <- "nickname"; full[[k]] <- "nickname"
+  }
+  lx <- first_name_lexicon()
+  if (nrow(lx)) {
+    k <- key(toupper(lx$name_short), toupper(lx$name_long))
+    for (i in seq_along(k)) full[[k[i]]] <- lx$type[i]
+  }
+  .synthid_cache$pairs_legacy <- legacy
+  .synthid_cache$pairs_full <- full
+  .synthid_cache$pair_key <- key
+  .synthid_cache
+}
+
+#' Type of a listed first-name pair (vectorised)
+#'
+#' Looks up each pair, in either order, in the pairs the comparator uses: the
+#' direct pairs of [nickname_table()] and, unless
+#' `options(synthid.first_name_lexicon = FALSE)`, the [first_name_lexicon()].
+#'
+#' @param a,b Equal-length upper-cased name vectors.
+#' @param lexicon Use the lexicon as well as [nickname_table()].
+#' @return Character vector of types (`NA` where the pair is not listed).
+#' @keywords internal
+first_name_pair_type <- function(a, b, lexicon = getOption("synthid.first_name_lexicon", TRUE)) {
+  cc <- pair_cache()
+  env <- if (isTRUE(lexicon)) cc$pairs_full else cc$pairs_legacy
+  a[is.na(a)] <- ""; b[is.na(b)] <- ""
+  out <- rep(NA_character_, length(a))
+  ok <- nzchar(a) & nzchar(b) & a != b
+  if (any(ok)) {
+    hit <- mget(cc$pair_key(a[ok], b[ok]), envir = env, ifnotfound = list(NA_character_))
+    out[ok] <- unlist(hit, use.names = FALSE)
+  }
+  out
+}
+
 #' Compare two first names, with nickname, initial, and phonetic handling
 #'
 #' The comparator used for the `first_name` field. Plain Jaro-Winkler is a poor
@@ -107,7 +186,13 @@ nickname_equivalent_vec <- function(a, b) {
 #' both:
 #' \itemize{
 #'   \item exact match -> `1`;
-#'   \item nickname/diminutive of the same canonical (`nickname_table()`) -> `0.95`;
+#'   \item a listed pair ([first_name_lexicon()] or a direct pair of
+#'     [nickname_table()]) -> by type: nickname or spelling `0.95`, compound
+#'     `0.9`, cognate `0.85`, or the fuzzy score below if that is higher. Only
+#'     listed pairs count: two nicknames of one name (`LISA`, `BETH`) are not
+#'     a pair. With `options(synthid.first_name_lexicon = FALSE)` only the
+#'     [nickname_table()] pairs are used, each at `0.95` (the behaviour before
+#'     the lexicon);
 #'   \item single initial vs full name -> `0.6` if the initial agrees, else `0`
 #'     (an initial is weak evidence, neither a match nor a strong mismatch);
 #'   \item otherwise Jaro-Winkler rescaled by `(jw - floor) / (1 - floor)` so
@@ -146,10 +231,14 @@ compare_first_names <- function(a, b, floor = 0.5) {
   out[init & !same1] <- 0.0
   rem <- rem & !init
 
-  sr <- logical(n)
-  if (any(rem)) sr[rem] <- nickname_equivalent_vec(a[rem], b[rem])
-  out[rem & sr] <- 0.95
-  rem <- rem & !sr
+  lexicon <- isTRUE(getOption("synthid.first_name_lexicon", TRUE))
+  typ <- rep(NA_character_, n)
+  if (any(rem)) typ[rem] <- first_name_pair_type(a[rem], b[rem], lexicon = lexicon)
+  listed <- rem & !is.na(typ)
+  if (!lexicon) {                                  # legacy: a listed pair is 0.95, nothing else
+    out[listed] <- 0.95
+    rem <- rem & !listed
+  }
 
   if (any(rem)) {
     jw <- 1 - stringdist::stringdist(a[rem], b[rem], method = "jw")
@@ -159,7 +248,9 @@ compare_first_names <- function(a, b, floor = 0.5) {
     pb <- suppressWarnings(stringdist::phonetic(alpha(b[rem])))
     phon <- !is.na(pa) & !is.na(pb) & pa == pb
     base[phon] <- pmax(base[phon], 0.5)
-    out[rem] <- base
+    ts <- unname(first_name_type_sim()[typ[rem]])
+    ts[is.na(ts)] <- 0
+    out[rem] <- pmax(base, ts)
   }
   out
 }
