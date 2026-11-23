@@ -29,6 +29,8 @@ navbar:
         href: articles/cross-org.html
       - text: Title roles
         href: articles/title-roles.html
+      - text: First-name variants - how the table was built
+        href: articles/first-name-variants.html
       - text: Careers over time - transitions, promotions, churn
         href: articles/careers-over-time.html
       - text: Scaling to the full panel
