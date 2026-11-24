@@ -4,7 +4,7 @@
 # EIN batches (Stage C), then run the batched linkage (Stage D).
 #
 # Each stage runs as its OWN Rscript subprocess -- a fresh session per year so
-# titleclassifier/peopleparser's internal future::plan() never bleeds between
+# titleclassifier's internal future::plan() (which parse_names() reuses) never bleeds between
 # runs, and so a crash in one year can't take down the whole driver's state.
 # Years whose Parquet already exists are SKIPPED, so re-running resumes.
 #

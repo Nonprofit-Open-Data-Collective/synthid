@@ -13,9 +13,10 @@
 #   << collapse to one row per person-year >>                -> respects synthid's one-record-per-org-year invariant
 #   peopleparser::parse_names(dtk.name)                      -> first/middle/last/suffix/salutation/gender
 #
-# titleclassifier and peopleparser each parallelize internally (furrr multisession),
-# so a single year already uses your cores. This stage is independent of synthid's
-# own EIN-batch parallelism in dev/03.
+# classify_titles() sets a furrr multisession plan (half the cores) and leaves it
+# set. Since peopleparser 0.2.0, parse_names() starts no workers of its own and
+# runs on the session's plan, so here it reuses titleclassifier's workers. This
+# stage is independent of synthid's own EIN-batch parallelism in dev/03.
 #
 # Usage:  Rscript dev/01_preprocess_year.R 2019
 #   Reads dev/data/F9-P07-T01-COMPENSATION-<year>.CSV if present; otherwise

@@ -26,6 +26,7 @@
 
 source("dev/partvii-panel/_panel.R")
 suppressPackageStartupMessages({ library(synthid); library(peopleparser) })
+if (packageVersion("peopleparser") < "0.2.0") stop("peopleparser >= 0.2.0 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
 args <- commandArgs(trailingOnly = TRUE)
 TAG  <- if (length(args) >= 1) args[1] else "full"
 NWE  <- if (length(args) >= 2) as.integer(args[2]) else 0L

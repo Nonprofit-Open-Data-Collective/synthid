@@ -18,7 +18,7 @@
 source("dev/partvii-panel/_panel.R")
 build_step("02-people")   # build-log.csv
 suppressPackageStartupMessages(library(peopleparser))
-if (packageVersion("peopleparser") < "0.1.0") stop("peopleparser >= 0.1.0 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
+if (packageVersion("peopleparser") < "0.2.0") stop("peopleparser >= 0.2.0 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
 
 missing <- YEARS[!file.exists(cls_file(YEARS))]
 if (length(missing)) stop("classified years missing: ", paste(missing, collapse = " "))
@@ -78,12 +78,16 @@ uniq <- unique(unlist(lapply(pp_by_year, `[[`, "dtk.name"), use.names = FALSE))
 stamp("%s distinct names across %s person rows", format(length(uniq), big.mark = ","),
       format(sum(vapply(pp_by_year, nrow, 1L)), big.mark = ","))
 NAME_COLS <- c("name", "salutation", "first_name", "middle_name", "last_name", "suffix", "gender")
+# Since peopleparser 0.2.0, parse_names() runs sequentially (about 1,700 names a
+# second) unless given workers; PARSE_WORKERS (default 8; 1 = sequential) starts
+# that many for each 1e6-name chunk, a few seconds of start-up per chunk.
+# Workers must load the same peopleparser build as this session, or
+# parse_names() stops, so don't reinstall it while this step runs.
+PARSE_WORKERS <- as.integer(Sys.getenv("PARSE_WORKERS", "8"))
 parse_chunked <- function(u) {
-  # parse_names() runs its own furrr multisession plan over all cores, and its
-  # workers find census.names only when peopleparser is attached.
   ch <- split(u, ceiling(seq_along(u) / 1e6))
   rbindlist(lapply(seq_along(ch), function(i) {
-    p <- as.data.table(parse_names(ch[[i]]))[, ..NAME_COLS]
+    p <- as.data.table(parse_names(ch[[i]], workers = PARSE_WORKERS))[, ..NAME_COLS]
     stamp("  names chunk %d of %d parsed", i, length(ch))
     p
   }))
@@ -91,7 +95,9 @@ parse_chunked <- function(u) {
 # Reuse an earlier build's parsed names (REUSE_NAMES_FROM: its people/ folder).
 # The parsed name depends only on dtk.name (titleclassifier step 01) and
 # peopleparser, so when neither changed the earlier result is exact; a
-# random 50,000 reused names are parsed again and must match.
+# random 50,000 reused names are parsed again and must match. peopleparser
+# 0.2.0 changes some two-word and MC parses, so a build parsed with 0.1.x
+# can't be reused: the check fails and the step stops.
 reuse_dir <- Sys.getenv("REUSE_NAMES_FROM")
 parsed <- data.table(dtk.name = uniq)
 if (nzchar(reuse_dir)) {
@@ -101,7 +107,7 @@ if (nzchar(reuse_dir)) {
   old <- merge(key, old, by = "PERSON_YEAR_ID")[!duplicated(dtk.name)][, PERSON_YEAR_ID := NULL]
   rm(key); gc(verbose = FALSE)
   set.seed(SEED); chk <- old[sample(.N, min(.N, 50000L))]
-  fresh <- as.data.table(parse_names(chk$dtk.name))[, ..NAME_COLS]
+  fresh <- as.data.table(parse_names(chk$dtk.name, workers = PARSE_WORKERS))[, ..NAME_COLS]
   ok <- isTRUE(all.equal(as.data.frame(chk[, ..NAME_COLS]), as.data.frame(fresh), check.attributes = FALSE))
   stamp("reusing parsed names from %s: %s of %s distinct names; 50,000 re-parsed match: %s", reuse_dir,
         format(nrow(old), big.mark = ","), format(length(uniq), big.mark = ","), ok)

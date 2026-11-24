@@ -29,7 +29,7 @@ Suggests:
     arrow,
     callr,
     knitr,
-    peopleparser (>= 0.1.0),
+    peopleparser (>= 0.2.0),
     ps,
     readr,
     rmarkdown,
