@@ -26,7 +26,7 @@
 
 source("dev/devdata/_config.R")
 suppressPackageStartupMessages({ library(synthid); library(peopleparser) })
-if (packageVersion("peopleparser") < "0.2.0") stop("peopleparser >= 0.2.0 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
+if (packageVersion("peopleparser") < "0.2.4") stop("peopleparser >= 0.2.4 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
 args <- commandArgs(trailingOnly = TRUE)
 TAG  <- if (length(args)) args[1] else "core_dev"
 

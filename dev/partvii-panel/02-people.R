@@ -18,7 +18,7 @@
 source("dev/partvii-panel/_panel.R")
 build_step("02-people")   # build-log.csv
 suppressPackageStartupMessages(library(peopleparser))
-if (packageVersion("peopleparser") < "0.2.0") stop("peopleparser >= 0.2.0 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
+if (packageVersion("peopleparser") < "0.2.4") stop("peopleparser >= 0.2.4 is required: remotes::install_github(\"Nonprofit-Open-Data-Collective/peopleparser\")")
 
 missing <- YEARS[!file.exists(cls_file(YEARS))]
 if (length(missing)) stop("classified years missing: ", paste(missing, collapse = " "))
@@ -96,7 +96,7 @@ parse_chunked <- function(u) {
 # The parsed name depends only on dtk.name (titleclassifier step 01) and
 # peopleparser, so when neither changed the earlier result is exact; a
 # random 50,000 reused names are parsed again and must match. peopleparser
-# 0.2.0 changes some two-word and MC parses, so a build parsed with 0.1.x
+# 0.2.x changes name order, MC and credential parses, so a build parsed with 0.1.x
 # can't be reused: the check fails and the step stops.
 reuse_dir <- Sys.getenv("REUSE_NAMES_FROM")
 parsed <- data.table(dtk.name = uniq)
